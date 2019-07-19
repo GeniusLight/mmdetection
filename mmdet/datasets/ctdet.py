@@ -148,6 +148,7 @@ class Ctdet(CocoDataset):
     def prepare_train_img(self, index):
         if self.use_coco:
             self.max_objs = 128
+            self.num_classes = 80
             _valid_ids = [
               1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
               14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
@@ -160,6 +161,7 @@ class Ctdet(CocoDataset):
             cat_ids = {v: i for i, v in enumerate(_valid_ids)}
         else:
             self.max_objs = 50
+            self.num_classes = 21
             cat_ids = {v: i for i, v in enumerate(np.arange(1, 21, dtype=np.int32))}
 
         # import pdb; pdb.set_trace()
@@ -174,8 +176,8 @@ class Ctdet(CocoDataset):
         height, width = img.shape[0], img.shape[1]
         c = np.array([img.shape[1] / 2., img.shape[0] / 2.], dtype=np.float32)
         # if self.opt.keep_res:
-        input_h = (height | 127) + 1
-        input_w = (width | 127) + 1
+        input_h = (height | self.size_divisor) + 1
+        input_w = (width | self.size_divisor) + 1
         s = np.array([input_w, input_h], dtype=np.float32)
         # else:
         #   s = max(img.shape[0], img.shape[1]) * 1.0
@@ -212,10 +214,9 @@ class Ctdet(CocoDataset):
 
         output_h = input_h // 4
         output_w = input_w // 4
-        num_classes = 80
         trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
 
-        hm = np.zeros((num_classes, output_h, output_w), dtype=np.float32)
+        hm = np.zeros((self.num_classes, output_h, output_w), dtype=np.float32)
         wh = np.zeros((self.max_objs, 2), dtype=np.float32)
         reg = np.zeros((self.max_objs, 2), dtype=np.float32)
         ind = np.zeros((self.max_objs), dtype=np.int64)
