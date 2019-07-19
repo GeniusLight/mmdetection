@@ -107,6 +107,33 @@ def affine_transform(pt, t):
 
 @DATASETS.register_module
 class Ctdet(CocoDataset):
+
+    # for Voc
+    CLASSES = ['__background__', "aeroplane", "bicycle", "bird", "boat",
+     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog",
+     "horse", "motorbike", "person", "pottedplant", "sheep", "sofa",
+     "train", "tvmonitor"]
+
+    # for coco
+    CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+               'train', 'truck', 'boat', 'traffic_light', 'fire_hydrant',
+               'stop_sign', 'parking_meter', 'bench', 'bird', 'cat', 'dog',
+               'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
+               'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+               'skis', 'snowboard', 'sports_ball', 'kite', 'baseball_bat',
+               'baseball_glove', 'skateboard', 'surfboard', 'tennis_racket',
+               'bottle', 'wine_glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+               'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+               'hot_dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+               'potted_plant', 'bed', 'dining_table', 'toilet', 'tv', 'laptop',
+               'mouse', 'remote', 'keyboard', 'cell_phone', 'microwave',
+               'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
+               'vase', 'scissors', 'teddy_bear', 'hair_drier', 'toothbrush')
+
+    def __init__(self, use_coco=True, **kwargs):
+        super(Ctdet, self).__init__(**kwargs)
+        self.use_coco=use_coco
+
     def _get_border(self, border, size):
         i = 1
         while size - border // i <= border // i:
@@ -119,13 +146,29 @@ class Ctdet(CocoDataset):
         return bbox
 
     def prepare_train_img(self, index):
+        if self.use_coco:
+            self.max_objs = 128
+            _valid_ids = [
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
+              14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+              24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
+              37, 38, 39, 40, 41, 42, 43, 44, 46, 47,
+              48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+              58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
+              72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+              82, 84, 85, 86, 87, 88, 89, 90]
+            cat_ids = {v: i for i, v in enumerate(_valid_ids)}
+        else:
+            self.max_objs = 50
+            cat_ids = {v: i for i, v in enumerate(np.arange(1, 21, dtype=np.int32))}
+
+        # import pdb; pdb.set_trace()
         img_id = self.img_infos[index]['id']
         file_name = self.coco.loadImgs(ids=[img_id])[0]['file_name']
         img_path = os.path.join(self.img_prefix, file_name)
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         anns = self.coco.loadAnns(ann_ids)
-        num_objs = min(len(anns), 128)
-        self.max_objs = 128
+        num_objs = min(len(anns), self.max_objs)
 
         img = cv2.imread(img_path)
         height, width = img.shape[0], img.shape[1]
@@ -137,8 +180,6 @@ class Ctdet(CocoDataset):
         # else:
         #   s = max(img.shape[0], img.shape[1]) * 1.0
         #   input_h, input_w = self.opt.input_h, self.opt.input_w
-
-        # print('up',s)
 
         # flipped = False
         # if self.split == 'train':
@@ -160,8 +201,6 @@ class Ctdet(CocoDataset):
         #     img = img[:, ::-1, :]
         #     c[0] =  width - c[0] - 1
 
-        # print('down', s, c)
-
         trans_input = get_affine_transform(
           c, s, 0, [input_w, input_h])
         inp = cv2.warpAffine(img, trans_input,
@@ -181,17 +220,6 @@ class Ctdet(CocoDataset):
         reg = np.zeros((self.max_objs, 2), dtype=np.float32)
         ind = np.zeros((self.max_objs), dtype=np.int64)
         reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
-
-        _valid_ids = [
-          1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
-          14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-          24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
-          37, 38, 39, 40, 41, 42, 43, 44, 46, 47,
-          48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
-          58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
-          72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
-          82, 84, 85, 86, 87, 88, 89, 90]
-        cat_ids = {v: i for i, v in enumerate(_valid_ids)}
 
         for k in range(num_objs):
             ann = anns[k]
