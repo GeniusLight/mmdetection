@@ -171,7 +171,7 @@ class Ctdet(CocoDataset):
         else:
             self.max_objs = 50
             self.num_classes = 20
-            cat_ids = {v: i for i, v in enumerate(np.arange(1, 20, dtype=np.int32))}
+            cat_ids = {v: i for i, v in enumerate(np.arange(1, 21, dtype=np.int32))}
 
         # import pdb; pdb.set_trace()
         img_id = self.img_infos[index]['id']

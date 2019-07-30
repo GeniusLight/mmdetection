@@ -1,5 +1,5 @@
 # choose dataset
-use_coco = True
+use_coco = False
 # model settings
 model = dict(
     type='CenterNet',
@@ -133,8 +133,8 @@ if use_coco:
 else:
     data_root = 'data/voc/'
 data = dict(
-    imgs_per_gpu=1,
-    workers_per_gpu=0,
+    imgs_per_gpu=32,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         use_coco=use_coco,
@@ -175,15 +175,16 @@ data = dict(
         with_label=False,
         test_mode=True))
 # optimizer
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+optimizer = dict(type='Adam', lr=1.25e-4)
+# optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+optimizer_config = {}
 # learning policy
 lr_config = dict(
     policy='step',
-    warmup='linear',
-    warmup_iters=500,
-    warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    # warmup='linear',
+    # warmup_iters=500,
+    # warmup_ratio=1.0 / 3,
+    step=[45, 60])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -194,10 +195,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 12
+total_epochs = 70
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/centernet_hg'
+work_dir = './work_dirs/centernet_dla'
 load_from = None
 resume_from = None
-workflow = [('train', 1)]
+workflow = [('train', 70)]
