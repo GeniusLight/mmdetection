@@ -1,5 +1,5 @@
 # choose dataset
-use_coco = False
+use_coco = True
 # model settings
 model = dict(
     type='CenterNet',
@@ -7,7 +7,7 @@ model = dict(
     backbone=dict(
         type='DLA',
         base_name='dla34',
-        heads=dict(hm=80 if use_coco else 21,
+        heads=dict(hm=80 if use_coco else 20,
             wh=2,
             reg=2)
         )
@@ -92,7 +92,28 @@ train_cfg = dict(a = 10)
 #             add_gt_as_proposals=True),
 #         pos_weight=-1,
 #         debug=False))
-test_cfg = dict(a = 5)
+if use_coco:
+    _valid_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
+                  14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                  24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
+                  37, 38, 39, 40, 41, 42, 43, 44, 46, 47,
+                  48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+                  58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
+                  72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+                  82, 84, 85, 86, 87, 88, 89, 90]
+    img_norm_cfg = dict(mean= [0.408, 0.447, 0.470], std= [0.289, 0.274, 0.278], to_rgb=True)
+else:
+    _valid_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+                  14, 15, 16, 17, 18, 19, 20]
+    img_norm_cfg = dict(
+        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
+
+test_cfg = dict(num_classes=80 if use_coco else 20,
+                valid_ids={i+1: v for i, v in enumerate(_valid_ids)},
+                img_norm_cfg=img_norm_cfg,
+                debug=0
+
+    )
 #     rpn=dict(
 #         nms_across_levels=False,
 #         nms_pre=1000,
@@ -109,12 +130,8 @@ test_cfg = dict(a = 5)
 dataset_type = 'Ctdet'
 if use_coco:
     data_root = 'data/coco/'
-    img_norm_cfg = dict(
-        mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 else:
     data_root = 'data/voc/'
-    img_norm_cfg = dict(
-        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
 data = dict(
     imgs_per_gpu=1,
     workers_per_gpu=0,
@@ -135,22 +152,24 @@ data = dict(
         with_label=True),
     val=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
+        ann_file=data_root + 'annotations/' +
+            ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
         img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(1333, 800),
+        img_scale=(512, 512),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=31,
         flip_ratio=0,
         with_mask=False,
         with_crowd=True,
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
+        ann_file=data_root + 'annotations/' +
+            ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
         img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(1333, 800),
+        img_scale=(512, 512),
         img_norm_cfg=img_norm_cfg,
-        size_divisor=32,
+        size_divisor=31,
         flip_ratio=0,
         with_mask=False,
         with_label=False,

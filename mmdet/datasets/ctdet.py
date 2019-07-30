@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import os
 import math
+import torch
 
 def get_dir(src_point, rot_rad):
     sn, cs = np.sin(rot_rad), np.cos(rot_rad)
@@ -24,6 +25,10 @@ def get_affine_transform(center,
                          output_size,
                          shift=np.array([0, 0], dtype=np.float32),
                          inv=0):
+    if isinstance(scale, torch.Tensor):
+        scale = scale.cpu().squeeze().numpy()
+    if isinstance(center, torch.Tensor):
+        center = center.cpu().squeeze().numpy()
     if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
         scale = np.array([scale, scale], dtype=np.float32)
 
@@ -31,6 +36,10 @@ def get_affine_transform(center,
     src_w = scale_tmp[0]
     dst_w = output_size[0]
     dst_h = output_size[1]
+    if isinstance(dst_w, torch.Tensor):
+        dst_w = dst_w.cpu().squeeze().numpy()
+    if isinstance(dst_h, torch.Tensor):
+        dst_h = dst_h.cpu().squeeze().numpy()
 
     rot_rad = np.pi * rot / 180
     src_dir = get_dir([0, src_w * -0.5], rot_rad)
@@ -161,8 +170,8 @@ class Ctdet(CocoDataset):
             cat_ids = {v: i for i, v in enumerate(_valid_ids)}
         else:
             self.max_objs = 50
-            self.num_classes = 21
-            cat_ids = {v: i for i, v in enumerate(np.arange(1, 21, dtype=np.int32))}
+            self.num_classes = 20
+            cat_ids = {v: i for i, v in enumerate(np.arange(1, 20, dtype=np.int32))}
 
         # import pdb; pdb.set_trace()
         img_id = self.img_infos[index]['id']
@@ -208,6 +217,7 @@ class Ctdet(CocoDataset):
         inp = cv2.warpAffine(img, trans_input,
                              (input_w, input_h),
                              flags=cv2.INTER_LINEAR)
+        # import pdb; pdb.set_trace()
         inp = (inp.astype(np.float32) / 255.)
         inp = (inp - self.img_norm_cfg['mean']) / self.img_norm_cfg['std']
         inp = inp.transpose(2, 0, 1)
@@ -246,5 +256,49 @@ class Ctdet(CocoDataset):
                 reg[k] = ct - ct_int
                 reg_mask[k] = 1
 
-        ret = {'img': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'reg': reg, 'img_meta':[]}
-        return ret
+        return {'img': inp, 'hm': hm, 'reg_mask': reg_mask, 'ind': ind, 'wh': wh, 'reg': reg, 'img_meta':[]}
+
+    def prepare_test_img(self, index):
+        img_id = self.img_infos[index]['id']
+        img_info = self.coco.loadImgs(ids=[img_id])[0]
+        img_path = os.path.join(self.img_prefix, img_info['file_name'])
+        ann_ids = self.coco.getAnnIds(imgIds=[img_id])
+        image = cv2.imread(img_path)
+        images, meta = {}, {}
+        # TODO - would be fixed later for multiscale testing
+        test_scales = [1.]
+        for scale in test_scales:
+            height, width = image.shape[0:2]
+            new_height = int(height * scale)
+            new_width  = int(width * scale)
+            # if self.opt.fix_res:
+            #     inp_height, inp_width = self.opt.input_h, self.opt.input_w
+            #     c = np.array([new_width / 2., new_height / 2.], dtype=np.float32)
+            #     s = max(height, width) * 1.0
+            # else:
+            inp_height = (new_height | self.size_divisor) + 1
+            inp_width = (new_width | self.size_divisor) + 1
+            c = np.array([new_width // 2, new_height // 2], dtype=np.float32)
+            s = np.array([inp_width, inp_height], dtype=np.float32)
+
+            # import pdb; pdb.set_trace()
+            trans_input = get_affine_transform(c, s, 0, [inp_width, inp_height])
+            # import pdb; pdb.set_trace()
+            resized_image = cv2.resize(image, (new_width, new_height))#.astype(np.float64)
+            inp_image = cv2.warpAffine(
+                resized_image, trans_input, (inp_width, inp_height),
+                flags=cv2.INTER_LINEAR)
+            inp_image = ((inp_image / 255. - self.img_norm_cfg['mean']) /
+                        self.img_norm_cfg['std']).astype(np.float32)
+
+            images = inp_image.transpose(2, 0, 1)
+            # if self.opt.flip_test:
+            #     images = np.concatenate((images, images[:, :, :, ::-1]), axis=0)
+            # images = torch.from_numpy(images)
+            meta = {'c': c, 's': s,
+                    'out_height': inp_height // 4,
+                    'out_width': inp_width // 4,
+                    'img_id':img_id,
+                    'mean': self.img_norm_cfg['mean'],
+                    'std': self.img_norm_cfg['std']}
+        return {'img': images, 'img_meta': meta}
