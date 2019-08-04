@@ -139,15 +139,15 @@ data = dict(
         type=dataset_type,
         use_coco=use_coco,
         ann_file=data_root + 'annotations/' +
-            ('instances_train2017.json' if use_coco else 'pascal_train2012.json'),
-        # ann_file=data_root + 'annotations/pascal_train2012.json' if ,
+            ('instances_train2017.json' if use_coco else 'pascal_trainval0712.json'),
         img_prefix=data_root + ('train2017/' if use_coco else 'images/'),
         # img_scale=(1133, 800),
-        img_scale=(512, 512),
+        img_scale=(512, 512) if use_coco else (384, 384),
+        keep_res=False,
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         # flip_ratio=0.,
-        with_mask=True,
+        with_mask=False,
         with_crowd=False,
         with_label=True),
     val=dict(
@@ -155,7 +155,7 @@ data = dict(
         ann_file=data_root + 'annotations/' +
             ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
         img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(512, 512),
+        img_scale=(512, 512) if use_coco else (384, 384),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,
@@ -165,9 +165,10 @@ data = dict(
     test=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/' +
-            ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
+            ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
+            # ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
         img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(512, 512),
+        img_scale=(512, 512) if use_coco else (384, 384),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,
@@ -184,7 +185,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -195,10 +196,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = './work_dirs/centernet_dla'
+work_dir = 'data/work_dirs/centernet_dla_pascal'
 load_from = None
 resume_from = None
-workflow = [('train', 70)]
+workflow = [('train', 12)]

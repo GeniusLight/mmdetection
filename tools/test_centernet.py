@@ -18,34 +18,34 @@ from mmdet.models import build_detector
 
 def single_gpu_test(model, data_loader, show=False):
     model.eval()
-    # results = dict()
-    # dataset = data_loader.dataset
-    # prog_bar = mmcv.ProgressBar(len(dataset))
-    # for i, data in enumerate(data_loader):
-    #     # import cv2
-    #     # import numpy as np
-    #     # inp = data['img'][0].numpy().transpose(1,2,0)
-    #     # inp = ((data['img_meta']['std'] * inp) + data['img_meta']['mean']) * 255.
-    #     # inp = inp.astype(np.uint8)
-    #     # cv2.imshow('test', inp)
-    #     # cv2.waitKey(0)
-    #     # cv2.destroyAllWindows()
-    #     # import pdb; pdb.set_trace()
+    results = dict()
+    dataset = data_loader.dataset
+    prog_bar = mmcv.ProgressBar(len(dataset))
+    for i, data in enumerate(data_loader):
+        # import cv2
+        # import numpy as np
+        # inp = data['img'][0].numpy().transpose(1,2,0)
+        # inp = ((data['img_meta']['std'] * inp) + data['img_meta']['mean']) * 255.
+        # inp = inp.astype(np.uint8)
+        # cv2.imshow('test', inp)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+        # import pdb; pdb.set_trace()
 
-    #     with torch.no_grad():
-    #         result = model(return_loss=False, rescale=not show, **data)
-    #     results[int(data['img_meta']['img_id'][0])] = result
+        with torch.no_grad():
+            result = model(return_loss=False, rescale=not show, **data)
+        results[int(data['img_meta']['img_id'][0])] = result
 
-    #     if show:
-    #         model.module.show_result(data, result, dataset.img_norm_cfg)
+        if show:
+            model.module.show_result(data, result, dataset.img_norm_cfg)
 
-    #     # import pdb; pdb.set_trace()
-    #     batch_size = data['img'].size(0)
-    #     for _ in range(batch_size):
-    #         prog_bar.update()
-    import pickle
+        # import pdb; pdb.set_trace()
+        batch_size = data['img'].size(0)
+        for _ in range(batch_size):
+            prog_bar.update()
+    # import pickle
     # pickle.dump(results, open( "test_results_coco_hg.p", "wb" ) )
-    results = pickle.load(open( "test_results_coco_hg.p", "rb" ))
+    # results = pickle.load(open( "test_results_coco_hg.p", "rb" ))
     return results
 
 

@@ -5,6 +5,7 @@ import cv2
 import os
 import math
 import torch
+import random
 
 def get_dir(src_point, rot_rad):
     sn, cs = np.sin(rot_rad), np.cos(rot_rad)
@@ -63,26 +64,26 @@ def get_affine_transform(center,
     return trans
 
 def gaussian_radius(det_size, min_overlap=0.7):
-  height, width = det_size
+    height, width = det_size
 
-  a1  = 1
-  b1  = (height + width)
-  c1  = width * height * (1 - min_overlap) / (1 + min_overlap)
-  sq1 = np.sqrt(b1 ** 2 - 4 * a1 * c1)
-  r1  = (b1 + sq1) / 2
+    a1  = 1
+    b1  = (height + width)
+    c1  = width * height * (1 - min_overlap) / (1 + min_overlap)
+    sq1 = np.sqrt(b1 ** 2 - 4 * a1 * c1)
+    r1  = (b1 + sq1) / 2
 
-  a2  = 4
-  b2  = 2 * (height + width)
-  c2  = (1 - min_overlap) * width * height
-  sq2 = np.sqrt(b2 ** 2 - 4 * a2 * c2)
-  r2  = (b2 + sq2) / 2
+    a2  = 4
+    b2  = 2 * (height + width)
+    c2  = (1 - min_overlap) * width * height
+    sq2 = np.sqrt(b2 ** 2 - 4 * a2 * c2)
+    r2  = (b2 + sq2) / 2
 
-  a3  = 4 * min_overlap
-  b3  = -2 * min_overlap * (height + width)
-  c3  = (min_overlap - 1) * width * height
-  sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
-  r3  = (b3 + sq3) / 2
-  return min(r1, r2, r3)
+    a3  = 4 * min_overlap
+    b3  = -2 * min_overlap * (height + width)
+    c3  = (min_overlap - 1) * width * height
+    sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
+    r3  = (b3 + sq3) / 2
+    return min(r1, r2, r3)
 
 def gaussian2D(shape, sigma=1):
     m, n = [(ss - 1.) / 2. for ss in shape]
@@ -93,26 +94,60 @@ def gaussian2D(shape, sigma=1):
     return h
 
 def draw_umich_gaussian(heatmap, center, radius, k=1):
-  diameter = 2 * radius + 1
-  gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
+    diameter = 2 * radius + 1
+    gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
-  x, y = int(center[0]), int(center[1])
+    x, y = int(center[0]), int(center[1])
 
-  height, width = heatmap.shape[0:2]
+    height, width = heatmap.shape[0:2]
 
-  left, right = min(x, radius), min(width - x, radius + 1)
-  top, bottom = min(y, radius), min(height - y, radius + 1)
+    left, right = min(x, radius), min(width - x, radius + 1)
+    top, bottom = min(y, radius), min(height - y, radius + 1)
 
-  masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
-  masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
-  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
-    np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
-  return heatmap
+    masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
 
 def affine_transform(pt, t):
     new_pt = np.array([pt[0], pt[1], 1.], dtype=np.float32).T
     new_pt = np.dot(t, new_pt)
     return new_pt[:2]
+
+def grayscale(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+def lighting_(data_rng, image, alphastd, eigval, eigvec):
+    alpha = data_rng.normal(scale=alphastd, size=(3, ))
+    image += np.dot(eigvec, eigval * alpha)
+
+def blend_(alpha, image1, image2):
+    image1 *= alpha
+    image2 *= (1 - alpha)
+    image1 += image2
+
+def saturation_(data_rng, image, gs, gs_mean, var):
+    alpha = 1. + data_rng.uniform(low=-var, high=var)
+    blend_(alpha, image, gs[:, :, None])
+
+def brightness_(data_rng, image, gs, gs_mean, var):
+    alpha = 1. + data_rng.uniform(low=-var, high=var)
+    image *= alpha
+
+def contrast_(data_rng, image, gs, gs_mean, var):
+    alpha = 1. + data_rng.uniform(low=-var, high=var)
+    blend_(alpha, image, gs_mean)
+
+def color_aug(data_rng, image, eig_val, eig_vec):
+    functions = [brightness_, contrast_, saturation_]
+    random.shuffle(functions)
+
+    gs = grayscale(image)
+    gs_mean = gs.mean()
+    for f in functions:
+        f(data_rng, image, gs, gs_mean, 0.4)
+    lighting_(data_rng, image, 0.1, eig_val, eig_vec)
 
 @DATASETS.register_module
 class Ctdet(CocoDataset):
@@ -139,9 +174,26 @@ class Ctdet(CocoDataset):
                'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock',
                'vase', 'scissors', 'teddy_bear', 'hair_drier', 'toothbrush')
 
-    def __init__(self, use_coco=True, **kwargs):
+    def __init__(self,
+                use_coco=True,
+                keep_res=False,
+                **kwargs):
         super(Ctdet, self).__init__(**kwargs)
         self.use_coco=use_coco
+        self.keep_res=keep_res
+        self.img_scale=kwargs['img_scale']
+        self.flip = 0.5
+        if self.use_coco:
+            pass
+        else:
+            self._data_rng = np.random.RandomState(123)
+            self._eig_val = np.array([0.2141788, 0.01817699, 0.00341571],
+                                     dtype=np.float32)
+            self._eig_vec = np.array([
+                [-0.58752847, -0.69563484, 0.41340352],
+                [-0.5832747, 0.00994535, -0.81221408],
+                [-0.56089297, 0.71832671, 0.41158938]
+            ], dtype=np.float32)
 
     def _get_border(self, border, size):
         i = 1
@@ -184,15 +236,15 @@ class Ctdet(CocoDataset):
         img = cv2.imread(img_path)
         height, width = img.shape[0], img.shape[1]
         c = np.array([img.shape[1] / 2., img.shape[0] / 2.], dtype=np.float32)
-        # if self.opt.keep_res:
-        input_h = (height | self.size_divisor) + 1
-        input_w = (width | self.size_divisor) + 1
-        s = np.array([input_w, input_h], dtype=np.float32)
-        # else:
-        #   s = max(img.shape[0], img.shape[1]) * 1.0
-        #   input_h, input_w = self.opt.input_h, self.opt.input_w
+        if self.keep_res:
+            input_h = (height | self.size_divisor) + 1
+            input_w = (width | self.size_divisor) + 1
+            s = np.array([input_w, input_h], dtype=np.float32)
+        else:
+            s = max(img.shape[0], img.shape[1]) * 1.0
+            input_h, input_w = self.img_scale
 
-        # flipped = False
+        flipped = False
         # if self.split == 'train':
         #   if not self.opt.not_rand_crop:
         s = s * np.random.choice(np.arange(0.6, 1.4, 0.1))
@@ -207,18 +259,19 @@ class Ctdet(CocoDataset):
         # c[1] += s * np.clip(np.random.randn()*cf, -2*cf, 2*cf)
         # s = s * np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
 
-        #   if np.random.random() < self.opt.flip:
-        #     flipped = True
-        #     img = img[:, ::-1, :]
-        #     c[0] =  width - c[0] - 1
+        if np.random.random() < self.flip:
+            flipped = True
+            img = img[:, ::-1, :]
+            c[0] =  width - c[0] - 1
 
         trans_input = get_affine_transform(
           c, s, 0, [input_w, input_h])
         inp = cv2.warpAffine(img, trans_input,
                              (input_w, input_h),
                              flags=cv2.INTER_LINEAR)
-        # import pdb; pdb.set_trace()
+
         inp = (inp.astype(np.float32) / 255.)
+        color_aug(self._data_rng, inp, self._eig_val, self._eig_vec)
         inp = (inp - self.img_norm_cfg['mean']) / self.img_norm_cfg['std']
         inp = inp.transpose(2, 0, 1)
 
@@ -236,6 +289,8 @@ class Ctdet(CocoDataset):
             ann = anns[k]
             bbox = self._coco_box_to_bbox(ann['bbox'])
             cls_id = int(cat_ids[ann['category_id']])
+            if flipped:
+                bbox[[0, 2]] = width - bbox[[2, 0]] - 1
 
             # tranform bounding box to output size
             bbox[:2] = affine_transform(bbox[:2], trans_output)

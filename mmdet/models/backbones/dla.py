@@ -423,7 +423,7 @@ class Interpolate(nn.Module):
 
 @BACKBONES.register_module
 class DLA(nn.Module):
-    def __init__(self, base_name, heads, pretrained=False, down_ratio=4, final_kernel=1,
+    def __init__(self, base_name, heads, pretrained=True, down_ratio=4, final_kernel=1,
                  last_level=5, head_conv=256, out_channel=0):
         super(DLA, self).__init__()
         assert down_ratio in [2, 4, 8, 16]

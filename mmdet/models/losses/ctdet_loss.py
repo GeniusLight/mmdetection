@@ -37,21 +37,21 @@ def gaussian2D(shape, sigma=1):
     return h
 
 def draw_umich_gaussian(heatmap, center, radius, k=1):
-  diameter = 2 * radius + 1
-  gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
+    diameter = 2 * radius + 1
+    gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
-  x, y = int(center[0]), int(center[1])
+    x, y = int(center[0]), int(center[1])
 
-  height, width = heatmap.shape[0:2]
+    height, width = heatmap.shape[0:2]
 
-  left, right = min(x, radius), min(width - x, radius + 1)
-  top, bottom = min(y, radius), min(height - y, radius + 1)
+    left, right = min(x, radius), min(width - x, radius + 1)
+    top, bottom = min(y, radius), min(height - y, radius + 1)
 
-  masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
-  masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
-  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
-    np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
-  return heatmap
+    masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
 
 def _neg_loss(pred, gt):
     ''' Modified focal loss. Exactly the same as CornerNet.
@@ -112,10 +112,6 @@ class RegL1Loss(nn.Module):
     def forward(self, output, mask, ind, target):
         pred = _tranpose_and_gather_feat(output, ind)
         mask = mask.unsqueeze(2).expand_as(pred).float()
-        # print(target)
-        # import pdb; pdb.set_trace()
-        # loss = F.l1_loss(pred * mask, target * mask, reduction='elementwise_mean')
-        # loss = F.l1_loss(pred * mask, target * mask, size_average=False)
         loss = F.l1_loss(pred * mask, target * mask, reduction='sum')
         loss = loss / (mask.sum() + 1e-4)
         return loss
@@ -173,11 +169,6 @@ class CtdetLoss(torch.nn.Module):
               off_loss += self.crit_reg(output['reg'], batch['reg_mask'],
                                     batch['ind'], batch['reg']) / self.num_stacks
 
-        # loss = self.hm_weight * hm_loss + self.wh_weight * wh_loss + \
-        #        self.off_weight * off_loss
         losses = {'hm_loss': self.hm_weight * hm_loss,
                     'wh_loss': self.wh_weight * wh_loss, 'off_loss': self.off_weight * off_loss}
-        # loss_stats = {'loss': loss, 'hm_loss': hm_loss,
-        #               'wh_loss': wh_loss, 'off_loss': off_loss}
-        # return loss, loss_stats
         return losses
