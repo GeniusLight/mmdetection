@@ -127,20 +127,20 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
 
     scores, inds, clses, ys, xs = _topk(heat, K=K)
     if reg is not None:
-      reg = _tranpose_and_gather_feat(reg, inds)
-      reg = reg.view(batch, K, 2)
-      xs = xs.view(batch, K, 1) + reg[:, :, 0:1]
-      ys = ys.view(batch, K, 1) + reg[:, :, 1:2]
+        reg = _tranpose_and_gather_feat(reg, inds)
+        reg = reg.view(batch, K, 2)
+        xs = xs.view(batch, K, 1) + reg[:, :, 0:1]
+        ys = ys.view(batch, K, 1) + reg[:, :, 1:2]
     else:
-      xs = xs.view(batch, K, 1) + 0.5
-      ys = ys.view(batch, K, 1) + 0.5
+        xs = xs.view(batch, K, 1) + 0.5
+        ys = ys.view(batch, K, 1) + 0.5
     wh = _tranpose_and_gather_feat(wh, inds)
     if cat_spec_wh:
-      wh = wh.view(batch, K, cat, 2)
-      clses_ind = clses.view(batch, K, 1, 1).expand(batch, K, 1, 2).long()
-      wh = wh.gather(2, clses_ind).view(batch, K, 2)
+        wh = wh.view(batch, K, cat, 2)
+        clses_ind = clses.view(batch, K, 1, 1).expand(batch, K, 1, 2).long()
+        wh = wh.gather(2, clses_ind).view(batch, K, 2)
     else:
-      wh = wh.view(batch, K, 2)
+        wh = wh.view(batch, K, 2)
     clses  = clses.view(batch, K, 1).float()
     scores = scores.view(batch, K, 1)
     bboxes = torch.cat([xs - wh[..., 0:1] / 2,
@@ -164,7 +164,7 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
     classes = dets[i, :, -1]
     for j in range(num_classes):
       inds = (classes == j)
-      top_preds[j + 1] = np.concatenate([
+      top_preds[j] = np.concatenate([
         dets[i, inds, :4].astype(np.float32),
         dets[i, inds, 4:5].astype(np.float32)], axis=1).tolist()
     ret.append(top_preds)
@@ -216,7 +216,8 @@ class CenterNet(TwoStageDetector):
         dets = ctdet_post_process(
                 dets.copy(), [meta['c']], [meta['s']],
                 meta['out_height'], meta['out_width'], self.num_classes)
-        for j in range(1, self.num_classes + 1):
+        # for j in range(1, self.num_classes + 1):
+        for j in range(self.num_classes):
             dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
             dets[0][j][:, :4] /= scale
         # since not hanlding scales yet
@@ -225,13 +226,14 @@ class CenterNet(TwoStageDetector):
 
     def merge_outputs(self, detections):
         results = {}
-        for j in range(1, self.num_classes + 1):
+        # for j in range(1, self.num_classes + 1):
+        for j in range(self.num_classes):
             results[j] = np.concatenate(
                 [detection[j] for detection in detections], axis=0).astype(np.float32)
           # if len(self.scales) > 1 or self.opt.nms:
           #    soft_nms(results[j], Nt=0.5, method=2)
         scores = np.hstack(
-            [results[j][:, 4] for j in range(1, self.num_classes + 1)])
+            [results[j][:, 4] for j in range(self.num_classes)])
         if len(scores) > self.max_per_image:
             kth = len(scores) - self.max_per_image
             thresh = np.partition(scores, kth)[kth]
