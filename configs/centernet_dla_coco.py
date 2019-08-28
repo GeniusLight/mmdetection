@@ -1,5 +1,5 @@
 # choose dataset
-use_coco = False
+use_coco = True
 # model settings
 model = dict(
     type='CenterNet',
@@ -133,7 +133,7 @@ if use_coco:
 else:
     data_root = 'data/voc/'
 data = dict(
-    imgs_per_gpu=32,
+    imgs_per_gpu=16,
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
@@ -185,7 +185,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -196,10 +196,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_pascal'
+work_dir = 'data/work_dirs/centernet_dla_coco'
 load_from = None
 resume_from = None
-workflow = [('train', 70)]
+workflow = [('train', 12)]
