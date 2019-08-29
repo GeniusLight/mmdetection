@@ -3,10 +3,25 @@ use_coco = False
 # model settings
 model = dict(
     type='CenterNet',
+    # pretrained='modelzoo://resnet50',
+    # backbone=dict(
+    #     type='ResNet',
+    #     depth=50,
+    #     num_stages=4,
+    #     out_indices=(0, 1, 2, 3),
+    #     frozen_stages=1,
+    #     style='pytorch'),
     pretrained='modelzoo://centernet_hg',
     backbone=dict(
         type='DLA',
         base_name='dla34',
+        heads=dict(hm=80 if use_coco else 20,
+            wh=2,
+            reg=2),
+        last_level=6
+        ),
+    rpn_head=dict(
+        type='CtdetHead',
         heads=dict(hm=80 if use_coco else 20,
             wh=2,
             reg=2)
@@ -133,8 +148,8 @@ if use_coco:
 else:
     data_root = 'data/voc/'
 data = dict(
-    imgs_per_gpu=32,
-    workers_per_gpu=4,
+    imgs_per_gpu=4,
+    workers_per_gpu=0,
     train=dict(
         type=dataset_type,
         use_coco=use_coco,
@@ -185,7 +200,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -196,10 +211,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_pascal'
+work_dir = 'data/work_dirs/centernet_dla_pascal_separate_heads'
 load_from = None
 resume_from = None
-workflow = [('train', 70)]
+workflow = [('train', 12)]

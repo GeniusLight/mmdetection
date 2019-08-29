@@ -440,44 +440,48 @@ class DLA(nn.Module):
         self.ida_up = IDAUp(out_channel, channels[self.first_level:self.last_level],
                             [2 ** i for i in range(self.last_level - self.first_level)])
 
-        self.heads = heads
-        for head in self.heads:
-            classes = self.heads[head]
-            if head_conv > 0:
-              fc = nn.Sequential(
-                  nn.Conv2d(channels[self.first_level], head_conv,
-                    kernel_size=3, padding=1, bias=True),
-                  nn.ReLU(inplace=True),
-                  nn.Conv2d(head_conv, classes,
-                    kernel_size=final_kernel, stride=1,
-                    padding=final_kernel // 2, bias=True))
-              if 'hm' in head:
-                fc[-1].bias.data.fill_(-2.19)
-              else:
-                fill_fc_weights(fc)
-            else:
-              fc = nn.Conv2d(channels[self.first_level], classes,
-                  kernel_size=final_kernel, stride=1,
-                  padding=final_kernel // 2, bias=True)
-              if 'hm' in head:
-                fc.bias.data.fill_(-2.19)
-              else:
-                fill_fc_weights(fc)
-            self.__setattr__(head, fc)
+        # self.heads = heads
+        # for head in self.heads:
+        #     classes = self.heads[head]
+        #     if head_conv > 0:
+        #       fc = nn.Sequential(
+        #           nn.Conv2d(channels[self.first_level], head_conv,
+        #             kernel_size=3, padding=1, bias=True),
+        #           nn.ReLU(inplace=True),
+        #           nn.Conv2d(head_conv, classes,
+        #             kernel_size=final_kernel, stride=1,
+        #             padding=final_kernel // 2, bias=True))
+        #       if 'hm' in head:
+        #         fc[-1].bias.data.fill_(-2.19)
+        #       else:
+        #         fill_fc_weights(fc)
+        #     else:
+        #       fc = nn.Conv2d(channels[self.first_level], classes,
+        #           kernel_size=final_kernel, stride=1,
+        #           padding=final_kernel // 2, bias=True)
+        #       if 'hm' in head:
+        #         fc.bias.data.fill_(-2.19)
+        #       else:
+        #         fill_fc_weights(fc)
+        #     self.__setattr__(head, fc)
 
     def forward(self, x):
         x = self.base(x)
+        # breakpoint()
         x = self.dla_up(x)
+        # breakpoint()
 
         y = []
         for i in range(self.last_level - self.first_level):
             y.append(x[i].clone())
+            # breakpoint()
         self.ida_up(y, 0, len(y))
-
-        z = {}
-        for head in self.heads:
-            z[head] = self.__getattr__(head)(y[-1])
-        return [z]
+        # breakpoint()
+        return y[-1]
+        # z = {}
+        # for head in self.heads:
+        #     z[head] = self.__getattr__(head)(y[-1])
+        # return [z]
 
     def init_weights(self, pretrained=None):
         print('initializing weights')

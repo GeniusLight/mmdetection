@@ -203,6 +203,9 @@ class CenterNet(TwoStageDetector):
     def forward_train(self, img, img_meta, **kwargs):
         # print('in forward train')
         output = self.backbone(img.type(torch.cuda.FloatTensor))
+        # breakpoint()
+        if self.rpn_head:
+            output = self.rpn_head(output)
         # print(kwargs)
         # loss, loss_stats = self.loss(output, **kwargs)
         losses = self.loss(output, **kwargs)
@@ -269,6 +272,8 @@ class CenterNet(TwoStageDetector):
     def forward_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
             output = self.backbone(img.type(torch.cuda.FloatTensor))[-1]
+            if self.rpn_head:
+                output = self.rpn_head(output)
             dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
