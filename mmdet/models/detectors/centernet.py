@@ -271,15 +271,14 @@ class CenterNet(TwoStageDetector):
     # TODO: change to simple test after the issue with img being list is solved
     def forward_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
-            output = self.backbone(img.type(torch.cuda.FloatTensor))[-1]
+            output = self.backbone(img[-1].type(torch.cuda.FloatTensor))
             if self.rpn_head:
-                output = self.rpn_head(output)
+                output = self.rpn_head(output)[-1]
             dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
             results = self.post_process_test(dets, img_meta)
-            # import pdb; pdb.set_trace()
             return results
 
     def debug(self, debugger, images, dets, output, scale=1):

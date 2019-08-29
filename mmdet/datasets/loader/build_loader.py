@@ -3,6 +3,7 @@ from functools import partial
 from mmcv.runner import get_dist_info
 from mmcv.parallel import collate
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import default_collate
 
 from .sampler import GroupSampler, DistributedGroupSampler, DistributedSampler
 
@@ -34,12 +35,16 @@ def build_dataloader(dataset,
         batch_size = num_gpus * imgs_per_gpu
         num_workers = num_gpus * workers_per_gpu
 
+    if kwargs.pop('collate_fn', True):
+        collate_fn = partial(collate, samples_per_gpu=imgs_per_gpu)
+    else:
+        collate_fn = default_collate
     data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
         sampler=sampler,
         num_workers=num_workers,
-        collate_fn=partial(collate, samples_per_gpu=imgs_per_gpu),
+        collate_fn=collate_fn,
         pin_memory=False,
         **kwargs)
 

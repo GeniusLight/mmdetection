@@ -345,5 +345,5 @@ class CtdetVoc(VOCDataset):
                     'img_id':img_id,
                     'mean': self.img_norm_cfg['mean'],
                     'std': self.img_norm_cfg['std']}
-        return {'img': images, 'img_meta': meta}
+        return {'img': [images], 'img_meta': meta}
 
