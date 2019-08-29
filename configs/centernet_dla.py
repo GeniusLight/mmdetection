@@ -142,20 +142,22 @@ test_cfg = dict(num_classes=80 if use_coco else 20,
 #     # e.g., nms=dict(type='soft_nms', iou_thr=0.5, min_score=0.05)
 # )
 # dataset settings
-dataset_type = 'Ctdet'
+dataset_type = 'Ctdet' if use_coco else 'CtdetVoc'
 if use_coco:
     data_root = 'data/coco/'
 else:
     data_root = 'data/voc/'
 data = dict(
-    imgs_per_gpu=4,
-    workers_per_gpu=0,
+    imgs_per_gpu=32,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         use_coco=use_coco,
-        ann_file=data_root + 'annotations/' +
-            ('instances_train2017.json' if use_coco else 'pascal_trainval0712.json'),
-        img_prefix=data_root + ('train2017/' if use_coco else 'images/'),
+        ann_file=(data_root + 'annotations/instances_train2017.json') if use_coco
+            else [data_root + 'VOC2007/ImageSets/Main/trainval.txt',
+                data_root + 'VOC2012/ImageSets/Main/trainval.txt'],
+        img_prefix=(data_root + 'train2017/') if use_coco
+            else [data_root + 'VOC2007/', data_root + 'VOC2012/'],
         # img_scale=(1133, 800),
         img_scale=(512, 512) if use_coco else (384, 384),
         keep_res=False,
@@ -167,9 +169,9 @@ data = dict(
         with_label=True),
     val=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/' +
-            ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
-        img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
+        ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
+            else 'VOC2007/ImageSets/Main/test.txt'),
+        img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
         img_scale=(512, 512) if use_coco else (384, 384),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
@@ -179,10 +181,9 @@ data = dict(
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/' +
-            ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
-            # ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
-        img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
+        ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
+            else 'VOC2007/ImageSets/Main/test.txt'),
+        img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
         img_scale=(512, 512) if use_coco else (384, 384),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,

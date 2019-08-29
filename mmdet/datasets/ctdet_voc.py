@@ -200,7 +200,7 @@ class CtdetVoc(VOCDataset):
         else:
             self.max_objs = 50
             self.num_classes = 20
-            cat_ids = {v: i for i, v in enumerate(np.arange(0, 20, dtype=np.int32))}
+            cat_ids = {v: i for i, v in enumerate(np.arange(1, 21, dtype=np.int32))}
 
         # import pdb; pdb.set_trace()
         img_info = self.img_infos[index]
@@ -269,7 +269,8 @@ class CtdetVoc(VOCDataset):
             # bbox = self._coco_box_to_bbox(ann['bbox'])
             bbox = anns['bboxes'][k]
             # cls_id = int(cat_ids[ann['category_id']])
-            cls_id = anns['labels'][k]
+            # cls_id = anns['labels'][k]
+            cls_id = int(cat_ids[anns['labels'][k]])
             if flipped:
                 bbox[[0, 2]] = width - bbox[[2, 0]] - 1
 
