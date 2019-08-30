@@ -109,7 +109,7 @@ else:
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
 
 test_cfg = dict(num_classes=80 if use_coco else 20,
-                valid_ids={i+1: v for i, v in enumerate(_valid_ids)},
+                valid_ids={i: v for i, v in enumerate(_valid_ids)},
                 img_norm_cfg=img_norm_cfg,
                 debug=0
 
