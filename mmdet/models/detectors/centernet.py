@@ -217,8 +217,8 @@ class CenterNet(TwoStageDetector):
         dets = dets.detach().cpu().numpy()
         dets = dets.reshape(1, -1, dets.shape[2])
         dets = ctdet_post_process(
-                dets.copy(), [meta['c']], [meta['s']],
-                meta['out_height'], meta['out_width'], self.num_classes)
+                dets.copy(), [meta['ctdet_c']], [meta['ctdet_s']],
+                meta['ctdet_out_height'], meta['ctdet_out_width'], self.num_classes)
         # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
             dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
@@ -278,7 +278,8 @@ class CenterNet(TwoStageDetector):
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
-            results = self.post_process_test(dets, img_meta)
+            # breakpoint()
+            results = self.post_process_test(dets, img_meta[-1][-1])
             return results
 
     def debug(self, debugger, images, dets, output, scale=1):
