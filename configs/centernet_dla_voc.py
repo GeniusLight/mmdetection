@@ -159,7 +159,8 @@ data = dict(
         img_prefix=(data_root + 'train2017/') if use_coco
             else [data_root + 'VOC2007/', data_root + 'VOC2012/'],
         # img_scale=(1133, 800),
-        img_scale=(512, 512) if use_coco else (384, 384),
+        # img_scale=(512, 512) if use_coco else (384, 384),
+        img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         resize_keep_ratio=False,
@@ -173,7 +174,8 @@ data = dict(
         ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
             else 'VOC2007/ImageSets/Main/test.txt'),
         img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
-        img_scale=(512, 512) if use_coco else (384, 384),
+        # img_scale=(512, 512) if use_coco else (384, 384),
+        img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,
@@ -186,7 +188,8 @@ data = dict(
         ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
             else 'VOC2007/ImageSets/Main/test.txt'),
         img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
-        img_scale=(512, 512) if use_coco else (384, 384),
+        # img_scale=(512, 512) if use_coco else (384, 384),
+        img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,

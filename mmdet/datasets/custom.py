@@ -393,10 +393,8 @@ class CustomDataset(Dataset):
                 c = np.array([new_width // 2, new_height // 2], dtype=np.float32)
                 s = np.array([inp_width, inp_height], dtype=np.float32)
 
-                # import pdb; pdb.set_trace()
                 trans_input = get_affine_transform(c, s, 0, [inp_width, inp_height])
-                # import pdb; pdb.set_trace()
-                resized_image = cv2.resize(image, (new_width, new_height))#.astype(np.float64)
+                resized_image = cv2.resize(img, (new_width, new_height))
                 inp_image = cv2.warpAffine(
                     resized_image, trans_input, (inp_width, inp_height),
                     flags=cv2.INTER_LINEAR)
