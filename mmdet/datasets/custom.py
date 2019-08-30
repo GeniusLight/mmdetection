@@ -2,13 +2,14 @@ import os.path as osp
 
 import mmcv
 import numpy as np
+import math
 from mmcv.parallel import DataContainer as DC
 from torch.utils.data import Dataset
 
 from .registry import DATASETS
 from .transforms import (ImageTransform, BboxTransform, MaskTransform,
                          SegMapTransform, Numpy2Tensor)
-from .utils import to_tensor, random_scale
+from .utils import to_tensor, random_scale, color_aug, gaussian_radius, draw_umich_gaussian
 from .extra_aug import ExtraAugmentation
 
 
@@ -51,6 +52,7 @@ class CustomDataset(Dataset):
                  with_crowd=True,
                  with_label=True,
                  with_semantic_seg=False,
+                 with_ctdet=False,
                  seg_prefix=None,
                  seg_scale_factor=1,
                  extra_aug=None,
@@ -101,6 +103,8 @@ class CustomDataset(Dataset):
         self.with_label = with_label
         # with semantic segmentation (stuff) annotation or not
         self.with_seg = with_semantic_seg
+        # with heatmap etc needed for ctdet method
+        self.with_ctdet = with_ctdet
         # prefix of semantic segmentation map path
         self.seg_prefix = seg_prefix
         # rescale factor for segmentation maps
@@ -241,6 +245,50 @@ class CustomDataset(Dataset):
             gt_masks = self.mask_transform(ann['masks'], pad_shape,
                                            scale_factor, flip)
 
+        if self.with_ctdet:
+            # inp = (inp.astype(np.float32) / 255.)
+            color_aug(self._data_rng, img, self._eig_val, self._eig_vec)
+            # inp = (inp - self.img_norm_cfg['mean']) / self.img_norm_cfg['std']
+            # inp = inp.transpose(2, 0, 1)
+
+            # TODO: change to down_ratio
+            output_h = img_shape[0] // 4
+            output_w = img_shape[1] // 4
+            # trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
+
+            hm = np.zeros((self.num_classes, output_h, output_w), dtype=np.float32)
+            wh = np.zeros((self.max_objs, 2), dtype=np.float32)
+            reg = np.zeros((self.max_objs, 2), dtype=np.float32)
+            ind = np.zeros((self.max_objs), dtype=np.int64)
+            reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
+
+            for k in range(min(len(ann['labels']), self.max_objs)):
+                bbox = ann['bboxes'][k]
+                cls_id = int(self.cat_ids[ann['labels'][k]])
+                # if flipped:
+                #     bbox[[0, 2]] = width - bbox[[2, 0]] - 1
+
+                # tranform bounding box to output size
+                bbox = self.bbox_transform(np.expand_dims(bbox, axis=0), (output_h, output_w), scale_factor/4,
+                                        flip)[0]
+                # bbox[:2] = affine_transform(bbox[:2], trans_output)
+                # bbox[2:] = affine_transform(bbox[2:], trans_output)
+                # bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w - 1)
+                # bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h - 1)
+                h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
+                if h > 0 and w > 0:
+                    # populate hm based on gd and ct
+                    radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+                    radius = max(0, int(radius))
+                    ct = np.array(
+                      [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
+                    ct_int = ct.astype(np.int32)
+                    draw_umich_gaussian(hm[cls_id], ct_int, radius)
+                    wh[k] = 1. * w, 1. * h
+                    ind[k] = ct_int[1] * output_w + ct_int[0]
+                    reg[k] = ct - ct_int
+                    reg_mask[k] = 1
+
         ori_shape = (img_info['height'], img_info['width'], 3)
         img_meta = dict(
             ori_shape=ori_shape,
@@ -263,6 +311,13 @@ class CustomDataset(Dataset):
             data['gt_masks'] = DC(gt_masks, cpu_only=True)
         if self.with_seg:
             data['gt_semantic_seg'] = DC(to_tensor(gt_seg), stack=True)
+        if self.with_ctdet:
+            data['hm'] = DC(to_tensor(hm), stack=True)
+            data['reg_mask'] = DC(to_tensor(reg_mask).unsqueeze(1), stack=True, pad_dims=1)
+            data['ind'] = DC(to_tensor(ind).unsqueeze(1), stack=True, pad_dims=1)
+            data['wh'] = DC(to_tensor(wh), stack=True, pad_dims=1)
+            data['reg'] = DC(to_tensor(reg), stack=True, pad_dims=1)
+
         return data
 
     def prepare_test_img(self, idx):
