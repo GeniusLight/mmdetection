@@ -156,7 +156,7 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
   # return 1-based class det dict
   ret = []
   for i in range(dets.shape[0]):
-    top_preds = {}
+    top_preds = []
     dets[i, :, :2] = transform_preds(
           dets[i, :, 0:2], c[i], s[i], (w, h))
     dets[i, :, 2:4] = transform_preds(
@@ -164,9 +164,9 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
     classes = dets[i, :, -1]
     for j in range(num_classes):
       inds = (classes == j)
-      top_preds[j] = np.concatenate([
+      top_preds.append(np.concatenate([
         dets[i, inds, :4].astype(np.float32),
-        dets[i, inds, 4:5].astype(np.float32)], axis=1).tolist()
+        dets[i, inds, 4:5].astype(np.float32)], axis=1).tolist())
     ret.append(top_preds)
   return ret
 
@@ -217,8 +217,8 @@ class CenterNet(TwoStageDetector):
         dets = dets.detach().cpu().numpy()
         dets = dets.reshape(1, -1, dets.shape[2])
         dets = ctdet_post_process(
-                dets.copy(), [meta['c']], [meta['s']],
-                meta['out_height'], meta['out_width'], self.num_classes)
+                dets.copy(), [meta['ctdet_c']], [meta['ctdet_s']],
+                meta['ctdet_out_height'], meta['ctdet_out_width'], self.num_classes)
         # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
             dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
@@ -228,11 +228,11 @@ class CenterNet(TwoStageDetector):
         return self.merge_outputs(dets)
 
     def merge_outputs(self, detections):
-        results = {}
+        results = []
         # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
-            results[j] = np.concatenate(
-                [detection[j] for detection in detections], axis=0).astype(np.float32)
+            results.append(np.concatenate(
+                [detection[j] for detection in detections], axis=0).astype(np.float32))
           # if len(self.scales) > 1 or self.opt.nms:
           #    soft_nms(results[j], Nt=0.5, method=2)
         scores = np.hstack(
@@ -278,7 +278,8 @@ class CenterNet(TwoStageDetector):
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
-            results = self.post_process_test(dets, img_meta)
+            # breakpoint()
+            results = self.post_process_test(dets, img_meta[-1][-1])
             return results
 
     def debug(self, debugger, images, dets, output, scale=1):
