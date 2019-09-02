@@ -257,7 +257,9 @@ class CustomDataset(Dataset):
 
             inp = (inp.astype(np.float32) / 255.)
             color_aug(self._data_rng, inp, self._eig_val, self._eig_vec)
-            inp = (inp - self.img_norm_cfg['mean']) / self.img_norm_cfg['std']
+            mean = np.array(self.img_norm_cfg['mean'], dtype=np.float32).reshape(1,1,3)
+            std = np.array(self.img_norm_cfg['std'], dtype=np.float32).reshape(1,1,3)
+            inp = (inp - mean) / std
             inp = inp.transpose(2, 0, 1)
             img = inp.copy()
         else:
@@ -310,7 +312,7 @@ class CustomDataset(Dataset):
 
             for k in range(min(len(ann['labels']), self.max_objs)):
                 bbox = ann['bboxes'][k]
-                cls_id = int(self.cat_ids[ann['labels'][k]])
+                cls_id = ann['labels'][k] - 1
                 if flip:
                     bbox[[0, 2]] = width - bbox[[2, 0]] - 1
 
@@ -403,12 +405,13 @@ class CustomDataset(Dataset):
                 scale_factor = np.array(
                     [(pad_shape[1]/img_shape[1]), (pad_shape[0]/img_shape[0]),
                     (pad_shape[1]/img_shape[1]), (pad_shape[0]/img_shape[0])], dtype=np.float32)
-                inp_image = ((inp_image / 255. - self.img_norm_cfg['mean']) /
-                            self.img_norm_cfg['std']).astype(np.float32)
+                mean = np.array(self.img_norm_cfg['mean'], dtype=np.float32).reshape(1,1,3)
+                std = np.array(self.img_norm_cfg['std'], dtype=np.float32).reshape(1,1,3)
+                inp_image = ((inp_image / 255. - mean) / std).astype(np.float32)
 
                 _img = inp_image.transpose(2, 0, 1)
                 if flip:
-                    _img = _img[:, :, :, ::-1]
+                    _img = _img[:, :, ::-1].copy()
 
                 _img_meta = dict(
                     ori_shape=(img_info['height'], img_info['width'], 3),

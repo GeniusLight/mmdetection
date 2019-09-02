@@ -156,7 +156,7 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
   # return 1-based class det dict
   ret = []
   for i in range(dets.shape[0]):
-    top_preds = {}
+    top_preds = []
     dets[i, :, :2] = transform_preds(
           dets[i, :, 0:2], c[i], s[i], (w, h))
     dets[i, :, 2:4] = transform_preds(
@@ -164,9 +164,9 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
     classes = dets[i, :, -1]
     for j in range(num_classes):
       inds = (classes == j)
-      top_preds[j] = np.concatenate([
+      top_preds.append(np.concatenate([
         dets[i, inds, :4].astype(np.float32),
-        dets[i, inds, 4:5].astype(np.float32)], axis=1).tolist()
+        dets[i, inds, 4:5].astype(np.float32)], axis=1).tolist())
     ret.append(top_preds)
   return ret
 
@@ -228,11 +228,11 @@ class CenterNet(TwoStageDetector):
         return self.merge_outputs(dets)
 
     def merge_outputs(self, detections):
-        results = {}
+        results = []
         # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
-            results[j] = np.concatenate(
-                [detection[j] for detection in detections], axis=0).astype(np.float32)
+            results.append(np.concatenate(
+                [detection[j] for detection in detections], axis=0).astype(np.float32))
           # if len(self.scales) > 1 or self.opt.nms:
           #    soft_nms(results[j], Nt=0.5, method=2)
         scores = np.hstack(

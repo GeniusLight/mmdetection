@@ -143,7 +143,7 @@ test_cfg = dict(num_classes=80 if use_coco else 20,
 # )
 # dataset settings
 # dataset_type = 'Ctdet' if use_coco else 'CtdetVoc'
-dataset_type = 'Ctdet' if use_coco else 'VOCDataset'
+dataset_type = 'CocoDataset' if use_coco else 'VOCDataset'
 if use_coco:
     data_root = 'data/coco/'
 else:
@@ -206,14 +206,14 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    step=[9, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+        dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
