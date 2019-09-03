@@ -1,6 +1,6 @@
 from .two_stage import TwoStageDetector
 from ..registry import DETECTORS, DATASETS
-from ..losses import CtdetLoss
+# from ..losses import CtdetLoss
 import torch
 import torch.nn as nn
 import numpy as np
@@ -193,7 +193,7 @@ class CenterNet(TwoStageDetector):
             train_cfg=train_cfg,
             test_cfg=test_cfg,
             pretrained=pretrained)
-        self.loss = CtdetLoss()
+        # self.loss = CtdetLoss()
         self.max_per_image = 100
         self.test_cfg = test_cfg
         if test_cfg:
@@ -208,7 +208,7 @@ class CenterNet(TwoStageDetector):
             output = self.rpn_head(output)
         # print(kwargs)
         # loss, loss_stats = self.loss(output, **kwargs)
-        losses = self.loss(output, **kwargs)
+        losses = self.rpn_head.loss(output, **kwargs)
 
         # import pdb; pdb.set_trace()
         return losses#, loss_stats
