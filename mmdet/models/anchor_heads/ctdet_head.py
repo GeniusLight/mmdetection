@@ -103,10 +103,11 @@ class CtdetHead(nn.Module):
 
     @auto_fp16()
     def forward(self, x):
-        z = {}
-        for head in self.heads:
-            z[head] = self.__getattr__(head)(x)
-        return [z]
+        return self.__getattr__('hm')(x), self.__getattr__('wh')(x), self.__getattr__('reg')(x)
+        # z = {}
+        # for head in self.heads:
+        #     z[head] = self.__getattr__(head)(x)
+        # return [z]
 
     # def get_target(self, sampling_results, gt_bboxes, gt_labels,
     #                rcnn_train_cfg):

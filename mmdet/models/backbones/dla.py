@@ -475,9 +475,10 @@ class DLA(nn.Module):
         for i in range(self.last_level - self.first_level):
             y.append(x[i].clone())
             # breakpoint()
-        self.ida_up(y, 0, len(y))
+        # self.ida_up(y, 0, len(y))
         # breakpoint()
-        return y[-1]
+        return y
+        # return y[-1]
         # z = {}
         # for head in self.heads:
         #     z[head] = self.__getattr__(head)(y[-1])

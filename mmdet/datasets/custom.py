@@ -300,40 +300,56 @@ class CustomDataset(Dataset):
             # inp = inp.transpose(2, 0, 1)
 
             # TODO: change to down_ratio
-            output_h = input_h // 4
-            output_w = input_w // 4
-            trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
+            # output_h = input_h // 4
+            # output_w = input_w // 4
+            # trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
 
-            hm = np.zeros((self.num_classes, output_h, output_w), dtype=np.float32)
-            wh = np.zeros((self.max_objs, 2), dtype=np.float32)
-            reg = np.zeros((self.max_objs, 2), dtype=np.float32)
-            ind = np.zeros((self.max_objs), dtype=np.int64)
-            reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
+            hm_list = []
+            reg_mask_list = []
+            ind_list = []
+            wh_list = []
+            reg_list = []
 
-            for k in range(min(len(ann['labels']), self.max_objs)):
-                bbox = ann['bboxes'][k]
-                cls_id = ann['labels'][k] - 1
-                if flip:
-                    bbox[[0, 2]] = width - bbox[[2, 0]] - 1
+            for down_ratio in [4,8,16,32]:
+                output_h = input_h // down_ratio
+                output_w = input_w // down_ratio
+                trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
 
-                # tranform bounding box to output size
-                bbox[:2] = affine_transform(bbox[:2], trans_output)
-                bbox[2:] = affine_transform(bbox[2:], trans_output)
-                bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w - 1)
-                bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h - 1)
-                h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
-                if h > 0 and w > 0:
-                    # populate hm based on gd and ct
-                    radius = gaussian_radius((math.ceil(h), math.ceil(w)))
-                    radius = max(0, int(radius))
-                    ct = np.array(
-                      [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
-                    ct_int = ct.astype(np.int32)
-                    draw_umich_gaussian(hm[cls_id], ct_int, radius)
-                    wh[k] = 1. * w, 1. * h
-                    ind[k] = ct_int[1] * output_w + ct_int[0]
-                    reg[k] = ct - ct_int
-                    reg_mask[k] = 1
+                hm = np.zeros((self.num_classes, output_h, output_w), dtype=np.float32)
+                wh = np.zeros((self.max_objs, 2), dtype=np.float32)
+                reg = np.zeros((self.max_objs, 2), dtype=np.float32)
+                ind = np.zeros((self.max_objs), dtype=np.int64)
+                reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
+
+                for k in range(min(len(ann['labels']), self.max_objs)):
+                    bbox = ann['bboxes'][k]
+                    cls_id = ann['labels'][k] - 1
+                    if flip:
+                        bbox[[0, 2]] = width - bbox[[2, 0]] - 1
+
+                    # tranform bounding box to output size
+                    bbox[:2] = affine_transform(bbox[:2], trans_output)
+                    bbox[2:] = affine_transform(bbox[2:], trans_output)
+                    bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, output_w - 1)
+                    bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, output_h - 1)
+                    h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
+                    if h > 0 and w > 0:
+                        # populate hm based on gd and ct
+                        radius = gaussian_radius((math.ceil(h), math.ceil(w)))
+                        radius = max(0, int(radius))
+                        ct = np.array(
+                          [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
+                        ct_int = ct.astype(np.int32)
+                        draw_umich_gaussian(hm[cls_id], ct_int, radius)
+                        wh[k] = 1. * w, 1. * h
+                        ind[k] = ct_int[1] * output_w + ct_int[0]
+                        reg[k] = ct - ct_int
+                        reg_mask[k] = 1
+                hm_list.append(hm)
+                reg_mask_list.append(np.expand_dims(reg_mask, axis=1))
+                ind_list.append(np.expand_dims(ind, axis=1))
+                wh_list.append(wh)
+                reg_list.append(reg)
 
         ori_shape = (img_info['height'], img_info['width'], 3)
         img_meta = dict(
@@ -358,11 +374,16 @@ class CustomDataset(Dataset):
         if self.with_seg:
             data['gt_semantic_seg'] = DC(to_tensor(gt_seg), stack=True)
         if self.with_ctdet:
-            data['hm'] = DC(to_tensor(hm), stack=True)
-            data['reg_mask'] = DC(to_tensor(reg_mask).unsqueeze(1), stack=True, pad_dims=1)
-            data['ind'] = DC(to_tensor(ind).unsqueeze(1), stack=True, pad_dims=1)
-            data['wh'] = DC(to_tensor(wh), stack=True, pad_dims=1)
-            data['reg'] = DC(to_tensor(reg), stack=True, pad_dims=1)
+            data['hm'] = hm_list
+            data['reg_mask'] = reg_mask_list
+            data['ind'] = ind_list
+            data['wh'] = wh_list
+            data['reg'] = reg_list
+            # data['hm'] = DC(to_tensor(hm_list), stack=True)
+            # data['reg_mask'] = DC(to_tensor(reg_mask_list).unsqueeze(1), stack=True, pad_dims=1)
+            # data['ind'] = DC(to_tensor(ind_list).unsqueeze(1), stack=True, pad_dims=1)
+            # data['wh'] = DC(to_tensor(wh_list), stack=True, pad_dims=1)
+            # data['reg'] = DC(to_tensor(reg_list), stack=True, pad_dims=1)
 
         return data
 
@@ -413,16 +434,22 @@ class CustomDataset(Dataset):
                 if flip:
                     _img = _img[:, :, ::-1].copy()
 
-                _img_meta = dict(
+                [4,8,16,32]
+
+                _img_meta = [dict(
                     ori_shape=(img_info['height'], img_info['width'], 3),
                     img_shape=img_shape,
                     pad_shape=pad_shape,
                     scale_factor=scale_factor,
                     ctdet_c=c,
                     ctdet_s=s,
-                    ctdet_out_height=inp_height // 4,
-                    ctdet_out_width=inp_width // 4,
-                    flip=flip)
+                    ctdet_out_height=inp_height // i,
+                    ctdet_out_width=inp_width // i,
+                    # ctdet_c=c,
+                    # ctdet_s=s,
+                    # ctdet_out_height=inp_height // 4,
+                    # ctdet_out_width=inp_width // 4,
+                    flip=flip) for i in [4,8,16,32]]
                 # images = torch.from_numpy(images)
                 # meta = {'c': c, 's': s,
                 #         'out_height': inp_height // 4,

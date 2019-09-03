@@ -142,34 +142,35 @@ class CtdetLoss(torch.nn.Module):
         batch = kwargs
         hm_loss, wh_loss, off_loss = 0, 0, 0
         for s in range(self.num_stacks):
-            output = outputs[s]
-            # for key, value in output.items():
-            #     print(key, value.shape)
-            # if not opt.mse_loss:
-            output['hm'] = torch.clamp(output['hm'].sigmoid_(), min=1e-4, max=1-1e-4)
+            level_outputs = outputs[s]
+            for i, output in enumerate(level_outputs):
+                # for key, value in output.items():
+                #     print(key, value.shape)
+                # if not opt.mse_loss:
+                output['hm'] = torch.clamp(output['hm'].sigmoid_(), min=1e-4, max=1-1e-4)
 
-            # if opt.eval_oracle_hm:
-            #   output['hm'] = batch['hm']
-            # if opt.eval_oracle_wh:
-            #   output['wh'] = torch.from_numpy(gen_oracle_map(
-            #     batch['wh'].detach().cpu().numpy(),
-            #     batch['ind'].detach().cpu().numpy(),
-            #     output['wh'].shape[3], output['wh'].shape[2])).to(opt.device)
-            # if opt.eval_oracle_offset:
-            #   output['reg'] = torch.from_numpy(gen_oracle_map(
-            #     batch['reg'].detach().cpu().numpy(),
-            #     batch['ind'].detach().cpu().numpy(),
-            #     output['reg'].shape[3], output['reg'].shape[2])).to(opt.device)
+                # if opt.eval_oracle_hm:
+                #   output['hm'] = batch['hm']
+                # if opt.eval_oracle_wh:
+                #   output['wh'] = torch.from_numpy(gen_oracle_map(
+                #     batch['wh'].detach().cpu().numpy(),
+                #     batch['ind'].detach().cpu().numpy(),
+                #     output['wh'].shape[3], output['wh'].shape[2])).to(opt.device)
+                # if opt.eval_oracle_offset:
+                #   output['reg'] = torch.from_numpy(gen_oracle_map(
+                #     batch['reg'].detach().cpu().numpy(),
+                #     batch['ind'].detach().cpu().numpy(),
+                #     output['reg'].shape[3], output['reg'].shape[2])).to(opt.device)
 
-            hm_loss += self.crit(output['hm'], batch['hm']) / self.num_stacks
-            if self.wh_weight > 0:
-                wh_loss += self.crit_reg(
-                    output['wh'], batch['reg_mask'],
-                    batch['ind'], batch['wh']) / self.num_stacks
+                hm_loss += self.crit(output['hm'], batch['hm'][i]) / self.num_stacks
+                if self.wh_weight > 0:
+                    wh_loss += self.crit_reg(
+                        output['wh'], batch['reg_mask'][i],
+                        batch['ind'][i], batch['wh'][i]) / self.num_stacks
 
-            if self.off_weight > 0:
-              off_loss += self.crit_reg(output['reg'], batch['reg_mask'],
-                                    batch['ind'], batch['reg']) / self.num_stacks
+                if self.off_weight > 0:
+                  off_loss += self.crit_reg(output['reg'], batch['reg_mask'][i],
+                                        batch['ind'][i], batch['reg'][i]) / self.num_stacks
 
         losses = {'hm_loss': self.hm_weight * hm_loss,
                     'wh_loss': self.wh_weight * wh_loss, 'off_loss': self.off_weight * off_loss}

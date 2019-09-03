@@ -6,6 +6,8 @@ import torch.nn as nn
 import numpy as np
 import cv2
 from .debugger import Debugger
+from mmdet.core import multi_apply, multiclass_nms
+from mmdet.ops.nms.nms_wrapper import soft_nms
 
 def transform_preds(coords, center, scale, output_size):
     target_coords = np.zeros(coords.shape)
@@ -203,12 +205,17 @@ class CenterNet(TwoStageDetector):
     def forward_train(self, img, img_meta, **kwargs):
         # print('in forward train')
         output = self.backbone(img.type(torch.cuda.FloatTensor))
-        # breakpoint()
+        # if self.rpn_head:
+        #     output = self.rpn_head(output)
+        if self.neck:
+            output = self.neck(output)
         if self.rpn_head:
-            output = self.rpn_head(output)
+            outs = list()
+            for each in output:
+                outs.append(self.rpn_head(each))
         # print(kwargs)
         # loss, loss_stats = self.loss(output, **kwargs)
-        losses = self.loss(output, **kwargs)
+        losses = self.loss(outs, **kwargs)
 
         # import pdb; pdb.set_trace()
         return losses#, loss_stats
@@ -225,22 +232,32 @@ class CenterNet(TwoStageDetector):
             dets[0][j][:, :4] /= scale
         # since not hanlding scales yet
         # return self.merge_outputs(dets[0])
-        return self.merge_outputs(dets)
+        return dets
+        # return self.merge_outputs(dets)
 
     def merge_outputs(self, detections):
-        results = []
+        for each in detections:
+            each, _ = soft_nms(each, 0.5, min_score=0.05)
+        # breakpoint()
+        # results = []
+        results = detections
         # for j in range(1, self.num_classes + 1):
-        for j in range(self.num_classes):
-            results.append(np.concatenate(
-                [detection[j] for detection in detections], axis=0).astype(np.float32))
+        # for j in range(self.num_classes):
+        #     results.append(np.concatenate(
+        #         [detection[j] for detection in detections], axis=0).astype(np.float32))
           # if len(self.scales) > 1 or self.opt.nms:
           #    soft_nms(results[j], Nt=0.5, method=2)
         scores = np.hstack(
             [results[j][:, 4] for j in range(self.num_classes)])
+
+        # det_bboxes, det_labels = multiclass_nms(results, scores, 0.05, 'soft_nms', 100)
+
+
         if len(scores) > self.max_per_image:
             kth = len(scores) - self.max_per_image
             thresh = np.partition(scores, kth)[kth]
-            for j in range(1, self.num_classes + 1):
+            # for j in range(1, self.num_classes + 1):
+            for j in range(self.num_classes):
                 keep_inds = (results[j][:, 4] >= thresh)
                 results[j] = results[j][keep_inds]
         # import pdb; pdb.set_trace()
@@ -272,14 +289,34 @@ class CenterNet(TwoStageDetector):
     def forward_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
             output = self.backbone(img[-1].type(torch.cuda.FloatTensor))
+            if self.neck:
+                output = self.neck(output)
             if self.rpn_head:
-                output = self.rpn_head(output)[-1]
-            dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+                output = multi_apply(self.rpn_head, output)
+                breakpoint()
+                # output = multi_apply(self.rpn_head, output)[-1]
+                # output = self.rpn_head(output)[-1]
+            # dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+            # breakpoint()
+            dets = []
+            for each_level in output:
+                dets.append(ctdet_decode(each_level['hm'].sigmoid_(), each_level['wh'], reg=each_level['reg'], K=40))
+            # dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
             # breakpoint()
-            results = self.post_process_test(dets, img_meta[-1][-1])
+            # results = self.post_process_test(dets, img_meta[-1][-1])
+            results = multi_apply(self.post_process_test, dets, img_meta[-1][-1])[0]
+            # cant handle multiscale testing yet
+            consolidated = []
+            for i in range(len(results[0])):
+                consolidated.append(np.concatenate([results[j][i] for j in range(len(results))]))
+            # for each_scale in results[0]:
+            #     for each_cls in each_scale:
+
+            # results = self.merge_outputs(results[0])
+            results = self.merge_outputs(consolidated)
             return results
 
     def debug(self, debugger, images, dets, output, scale=1):
