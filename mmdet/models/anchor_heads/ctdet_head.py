@@ -64,8 +64,8 @@ def _neg_loss(pred, gt):
       pred (batch x c x h x w)
       gt_regr (batch x c x h x w)
     '''
-    pos_inds = gt.eq(1).float()
-    neg_inds = gt.lt(1).float()
+    pos_inds = gt.eq(1).half()
+    neg_inds = gt.lt(1).half()
 
     neg_weights = torch.pow(1 - gt, 4)
 
@@ -74,7 +74,7 @@ def _neg_loss(pred, gt):
     pos_loss = torch.log(pred) * torch.pow(1 - pred, 2) * pos_inds
     neg_loss = torch.log(1 - pred) * torch.pow(pred, 2) * neg_weights * neg_inds
 
-    num_pos  = pos_inds.float().sum()
+    num_pos  = pos_inds.half().sum()
     pos_loss = pos_loss.sum()
     neg_loss = neg_loss.sum()
 
@@ -89,7 +89,10 @@ class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
         self.neg_loss = _neg_loss
+        self.fp16_enabled = True
 
+    # @auto_fp16(apply_to=('out', 'target', ))
+    @auto_fp16()
     def forward(self, out, target):
         return self.neg_loss(out, target)
 
@@ -113,11 +116,13 @@ def _tranpose_and_gather_feat(feat, ind):
 class RegL1Loss(nn.Module):
     def __init__(self):
         super(RegL1Loss, self).__init__()
+        self.fp16_enabled = True
 
+    @auto_fp16(apply_to=('output', 'mask', 'target',))
     def forward(self, output, mask, ind, target):
         pred = _tranpose_and_gather_feat(output, ind)
         # mask = mask.unsqueeze(2).expand_as(pred).float()
-        mask = mask.expand_as(pred).float()
+        mask = mask.expand_as(pred).half()
         loss = F.l1_loss(pred * mask, target * mask, reduction='sum')
         loss = loss / (mask.sum() + 1e-4)
         return loss
@@ -140,7 +145,9 @@ class CtdetLoss(torch.nn.Module):
         self.wh_weight = 0.1
         self.off_weight = 1
         self.hm_weight = 1
+        self.fp16_enabled = True
 
+    @auto_fp16()
     def forward(self, outputs, **kwargs):
         batch = kwargs
         hm_loss, wh_loss, off_loss = 0, 0, 0
@@ -211,6 +218,7 @@ class CtdetHead(nn.Module):
                  loss_bbox=dict(
                      type='SmoothL1Loss', beta=1.0, loss_weight=1.0)):
         super(CtdetHead, self).__init__()
+        self.fp16_enabled = True
         self.heads = heads
         for head in self.heads:
             classes = self.heads[head]
