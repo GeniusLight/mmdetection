@@ -9,8 +9,8 @@ from torch import nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
-# from .DCNv2.dcn_v2 import DCN
-from mmdet.ops import ModulatedDeformConvPack as DCN
+from ..DCNv2.dcn_v2 import DCN
+# from mmdet.ops import ModulatedDeformConvPack as DCN
 from ..registry import BACKBONES
 
 BN_MOMENTUM = 0.1

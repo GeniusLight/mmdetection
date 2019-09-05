@@ -17,6 +17,7 @@ from .env import get_root_logger
 
 
 def parse_losses(losses):
+    # breakpoint()
     log_vars = OrderedDict()
     for loss_name, loss_value in losses.items():
         if isinstance(loss_value, torch.Tensor):
@@ -24,15 +25,16 @@ def parse_losses(losses):
         elif isinstance(loss_value, list):
             log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
         else:
-            raise TypeError(
-                '{} is not a tensor or list of tensors'.format(loss_name))
+            log_vars[loss_name] = loss_value
+            # raise TypeError(
+            #     '{} is not a tensor or list of tensors'.format(loss_name))
 
     loss = sum(_value for _key, _value in log_vars.items() if 'loss' in _key)
 
     log_vars['loss'] = loss
     for name in log_vars:
         log_vars[name] = log_vars[name].item()
-
+    # breakpoint()
     return loss, log_vars
 
 
@@ -200,7 +202,9 @@ def _non_dist_train(model, dataset, cfg, validate=False):
             dist=False)
     ]
     # put model on gpus
+    # breakpoint()
     model = MMDataParallel(model, device_ids=range(cfg.gpus)).cuda()
+    # breakpoint()
 
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)

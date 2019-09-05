@@ -6,6 +6,7 @@ import torch.nn as nn
 import numpy as np
 import cv2
 from .debugger import Debugger
+import time
 
 def transform_preds(coords, center, scale, output_size):
     target_coords = np.zeros(coords.shape)
@@ -201,14 +202,32 @@ class CenterNet(TwoStageDetector):
             self.debugger = Debugger(dataset=DATASETS.get('Ctdet'), theme='black', num_classes=self.num_classes)
 
     def forward_train(self, img, img_meta, **kwargs):
+        torch.cuda.synchronize()
+        end = time.time()
         # print('in forward train')
         output = self.backbone(img.type(torch.cuda.FloatTensor))
         # breakpoint()
+        # output = self.backbone(img)
+        torch.cuda.synchronize()
+        backbone_time = time.time() - end
+        torch.cuda.synchronize()
+        head_end = time.time()
+        # breakpoint()
         if self.rpn_head:
             output = self.rpn_head(output)
+        torch.cuda.synchronize()
+        head_time = time.time() - head_end
+        torch.cuda.synchronize()
+        loss_end = time.time()
         # print(kwargs)
         # loss, loss_stats = self.loss(output, **kwargs)
         losses = self.rpn_head.loss(output, **kwargs)
+        torch.cuda.synchronize()
+        loss_time = time.time() - loss_end
+
+        losses['backbone_time'] = torch.tensor(backbone_time)
+        losses['head_time'] = torch.tensor(head_time)
+        losses['loss_time'] = torch.tensor(loss_time)
 
         # import pdb; pdb.set_trace()
         return losses#, loss_stats

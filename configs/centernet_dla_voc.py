@@ -206,14 +206,14 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[9, 11])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=50,
+    interval=1,
     hooks=[
         dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook')
+        # dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
@@ -223,4 +223,4 @@ log_level = 'INFO'
 work_dir = 'data/work_dirs/centernet_dla_pascal_datamerge'
 load_from = None
 resume_from = None
-workflow = [('train', 12)]
+workflow = [('train', 1)]
