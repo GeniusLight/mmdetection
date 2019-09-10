@@ -1,11 +1,12 @@
-from .two_stage import TwoStageDetector
-from ..registry import DETECTORS, DATASETS
-# from ..losses import CtdetLoss
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import cv2
+
+from ..registry import DATASETS, DETECTORS
 from ..utils.ctdet_debugger import Debugger
+from .two_stage import TwoStageDetector
+
 
 def transform_preds(coords, center, scale, output_size):
     target_coords = np.zeros(coords.shape)
