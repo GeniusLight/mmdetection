@@ -13,12 +13,12 @@ model = dict(
     #     style='pytorch'),
     pretrained='modelzoo://centernet_hg',
     backbone=dict(
-        type='DLAv0',
+        type='DLA',
         base_name='dla34',
-        # heads=dict(hm=80 if use_coco else 20,
-        #     wh=2,
-        #     reg=2),
-        # last_level=6
+        heads=dict(hm=80 if use_coco else 20,
+            wh=2,
+            reg=2),
+        last_level=6
         ),
     rpn_head=dict(
         type='CtdetHead',
@@ -27,7 +27,6 @@ model = dict(
             reg=2)
         )
     )
-cudnn_benchmark = True
 #         depth=50,
 #         num_stages=4,
 #         out_indices=(0, 1, 2, 3),
@@ -198,30 +197,42 @@ data = dict(
         with_ctdet=True,
         test_mode=True))
 # optimizer
-optimizer = dict(type='Adam', lr=1.25e-4)
-# optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-optimizer_config = {}
+optimizer = dict(type='SGD', lr=1.25e-4, momentum=0.9, weight_decay=5e-4)
+optimizer_config = dict()
 # learning policy
 lr_config = dict(
     policy='step',
-    # warmup='linear',
-    # warmup_iters=500,
-    # warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    warmup='linear',
+    warmup_iters=500,
+    warmup_ratio=1.0 / 3,
+    step=[9, 11])
+    # step=[16, 20])
+# # optimizer
+# optimizer = dict(type='Adam', lr=1.25e-4)
+# # optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+# optimizer_config = {}
+# # learning policy
+# lr_config = dict(
+#     policy='step',
+#     # warmup='linear',
+#     # warmup_iters=500,
+#     # warmup_ratio=1.0 / 3,
+#     step=[45, 60])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
-    interval=1,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+        dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
+# total_epochs = 24
 total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_pascal_datamerge'
+work_dir = 'data/work_dirs/centernet_dla_pascal_optim'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]

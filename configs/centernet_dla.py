@@ -148,7 +148,7 @@ if use_coco:
 else:
     data_root = 'data/voc/'
 data = dict(
-    imgs_per_gpu=32,
+    imgs_per_gpu=40,
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
@@ -163,7 +163,7 @@ data = dict(
         keep_res=False,
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        # flip_ratio=0.,
+        flip_ratio=0.5,
         with_mask=False,
         with_crowd=False,
         with_label=True),
@@ -201,7 +201,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[8, 11])
+    step=[45, 60])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -212,10 +212,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 12
+total_epochs = 70
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_pascal_separate_heads'
+work_dir = 'data/work_dirs/centernet_dla_pascal'
 load_from = None
 resume_from = None
-workflow = [('train', 12)]
+workflow = [('train', 70)]

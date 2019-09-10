@@ -205,7 +205,7 @@ class CenterNet(TwoStageDetector):
         torch.cuda.synchronize()
         end = time.time()
         # print('in forward train')
-        output = self.backbone(img.type(torch.cuda.FloatTensor))
+        output, time_dict = self.backbone(img.type(torch.cuda.FloatTensor))
         # breakpoint()
         # output = self.backbone(img)
         torch.cuda.synchronize()
@@ -228,6 +228,7 @@ class CenterNet(TwoStageDetector):
         losses['backbone_time'] = torch.tensor(backbone_time)
         losses['head_time'] = torch.tensor(head_time)
         losses['loss_time'] = torch.tensor(loss_time)
+        losses.update(time_dict)
 
         # import pdb; pdb.set_trace()
         return losses#, loss_stats
@@ -290,7 +291,7 @@ class CenterNet(TwoStageDetector):
     # TODO: change to simple test after the issue with img being list is solved
     def forward_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
-            output = self.backbone(img[-1].type(torch.cuda.FloatTensor))
+            output, _ = self.backbone(img[-1].type(torch.cuda.FloatTensor))
             if self.rpn_head:
                 output = self.rpn_head(output)[-1]
             dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
