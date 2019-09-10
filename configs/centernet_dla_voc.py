@@ -15,18 +15,10 @@ model = dict(
     backbone=dict(
         type='DLA',
         base_name='dla34',
-        heads=dict(hm=80 if use_coco else 20,
-            wh=2,
-            reg=2),
-        last_level=5
-        ),
+        heads=dict(hm=80 if use_coco else 20, wh=2, reg=2),
+        last_level=5),
     rpn_head=dict(
-        type='CtdetHead',
-        heads=dict(hm=80 if use_coco else 20,
-            wh=2,
-            reg=2)
-        )
-    )
+        type='CtdetHead', heads=dict(hm=80 if use_coco else 20, wh=2, reg=2)))
 cudnn_benchmark = True
 #         depth=50,
 #         num_stages=4,
@@ -69,7 +61,7 @@ cudnn_benchmark = True
 #             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
 #         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
 # # model training and testing settings
-train_cfg = dict(a = 10)
+train_cfg = dict(a=10)
 #     rpn=dict(
 #         assigner=dict(
 #             type='MaxIoUAssigner',
@@ -109,27 +101,28 @@ train_cfg = dict(a = 10)
 #         pos_weight=-1,
 #         debug=False))
 if use_coco:
-    _valid_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
-                  14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                  24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
-                  37, 38, 39, 40, 41, 42, 43, 44, 46, 47,
-                  48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
-                  58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
-                  72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
-                  82, 84, 85, 86, 87, 88, 89, 90]
-    img_norm_cfg = dict(mean= [0.408, 0.447, 0.470], std= [0.289, 0.274, 0.278], to_rgb=True)
+    _valid_ids = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42,
+        43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+        62, 63, 64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84,
+        85, 86, 87, 88, 89, 90
+    ]
+    img_norm_cfg = dict(
+        mean=[0.408, 0.447, 0.470], std=[0.289, 0.274, 0.278], to_rgb=True)
 else:
-    _valid_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-                  14, 15, 16, 17, 18, 19, 20]
+    _valid_ids = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+    ]
     img_norm_cfg = dict(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
 
-test_cfg = dict(num_classes=80 if use_coco else 20,
-                valid_ids={i+1: v for i, v in enumerate(_valid_ids)},
-                img_norm_cfg=img_norm_cfg,
-                debug=0
-
-    )
+test_cfg = dict(
+    num_classes=80 if use_coco else 20,
+    valid_ids={i + 1: v
+               for i, v in enumerate(_valid_ids)},
+    img_norm_cfg=img_norm_cfg,
+    debug=0)
 #     rpn=dict(
 #         nms_across_levels=False,
 #         nms_pre=1000,
@@ -154,11 +147,14 @@ data = dict(
     workers_per_gpu=0,
     train=dict(
         type=dataset_type,
-        ann_file=(data_root + 'annotations/instances_train2017.json') if use_coco
-            else [data_root + 'VOC2007/ImageSets/Main/trainval.txt',
-                data_root + 'VOC2012/ImageSets/Main/trainval.txt'],
-        img_prefix=(data_root + 'train2017/') if use_coco
-            else [data_root + 'VOC2007/', data_root + 'VOC2012/'],
+        ann_file=(data_root +
+                  'annotations/instances_train2017.json') if use_coco else [
+                      data_root +
+                      'VOC2007/ImageSets/Main/trainval.txt', data_root +
+                      'VOC2012/ImageSets/Main/trainval.txt'
+                  ],
+        img_prefix=(data_root + 'train2017/')
+        if use_coco else [data_root + 'VOC2007/', data_root + 'VOC2012/'],
         img_scale=(512, 512) if use_coco else (384, 384),
         # img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
@@ -172,10 +168,10 @@ data = dict(
     val=dict(
         type=dataset_type,
         ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
-            else 'VOC2007/ImageSets/Main/test.txt'),
+                              else 'VOC2007/ImageSets/Main/test.txt'),
         img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
         # img_scale=(512, 512) if use_coco else (384, 384),
-        img_scale=(1,1),
+        img_scale=(1, 1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,
@@ -186,10 +182,10 @@ data = dict(
     test=dict(
         type=dataset_type,
         ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
-            else 'VOC2007/ImageSets/Main/test.txt'),
+                              else 'VOC2007/ImageSets/Main/test.txt'),
         img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
         # img_scale=(512, 512) if use_coco else (384, 384),
-        img_scale=(1,1),
+        img_scale=(1, 1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=1,

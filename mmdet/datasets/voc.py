@@ -18,11 +18,10 @@ class VOCDataset(XMLDataset):
         self._data_rng = np.random.RandomState(123)
         self._eig_val = np.array([0.2141788, 0.01817699, 0.00341571],
                                  dtype=np.float32)
-        self._eig_vec = np.array([
-            [-0.58752847, -0.69563484, 0.41340352],
-            [-0.5832747, 0.00994535, -0.81221408],
-            [-0.56089297, 0.71832671, 0.41158938]
-        ], dtype=np.float32)
+        self._eig_vec = np.array([[-0.58752847, -0.69563484, 0.41340352],
+                                  [-0.5832747, 0.00994535, -0.81221408],
+                                  [-0.56089297, 0.71832671, 0.41158938]],
+                                 dtype=np.float32)
         if 'VOC2007' in self.img_prefix:
             self.year = 2007
         elif 'VOC2012' in self.img_prefix:

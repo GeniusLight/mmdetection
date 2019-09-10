@@ -29,12 +29,11 @@ class CocoDataset(CustomDataset):
         self.num_classes = 80
         self._data_rng = np.random.RandomState(123)
         self._eig_val = np.array([0.2141788, 0.01817699, 0.00341571],
-                         dtype=np.float32)
-        self._eig_vec = np.array([
-            [-0.58752847, -0.69563484, 0.41340352],
-            [-0.5832747, 0.00994535, -0.81221408],
-            [-0.56089297, 0.71832671, 0.41158938]
-        ], dtype=np.float32)
+                                 dtype=np.float32)
+        self._eig_vec = np.array([[-0.58752847, -0.69563484, 0.41340352],
+                                  [-0.5832747, 0.00994535, -0.81221408],
+                                  [-0.56089297, 0.71832671, 0.41158938]],
+                                 dtype=np.float32)
 
     def load_annotations(self, ann_file):
         self.coco = COCO(ann_file)
