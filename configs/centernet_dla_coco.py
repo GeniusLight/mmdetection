@@ -3,15 +3,31 @@ use_coco = True
 # model settings
 model = dict(
     type='CenterNet',
+    # pretrained='modelzoo://resnet50',
+    # backbone=dict(
+    #     type='ResNet',
+    #     depth=50,
+    #     num_stages=4,
+    #     out_indices=(0, 1, 2, 3),
+    #     frozen_stages=1,
+    #     style='pytorch'),
     pretrained='modelzoo://centernet_hg',
     backbone=dict(
         type='DLA',
         base_name='dla34',
         heads=dict(hm=80 if use_coco else 20,
             wh=2,
+            reg=2),
+        last_level=5
+        ),
+    rpn_head=dict(
+        type='CtdetHead',
+        heads=dict(hm=80 if use_coco else 20,
+            wh=2,
             reg=2)
         )
     )
+cudnn_benchmark = True
 #         depth=50,
 #         num_stages=4,
 #         out_indices=(0, 1, 2, 3),
@@ -127,7 +143,8 @@ test_cfg = dict(num_classes=80 if use_coco else 20,
 #     # e.g., nms=dict(type='soft_nms', iou_thr=0.5, min_score=0.05)
 # )
 # dataset settings
-dataset_type = 'Ctdet'
+# dataset_type = 'Ctdet' if use_coco else 'CtdetVoc'
+dataset_type = 'CocoDataset' if use_coco else 'VOCDataset'
 if use_coco:
     data_root = 'data/coco/'
 else:
@@ -137,46 +154,51 @@ data = dict(
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
-        use_coco=use_coco,
-        ann_file=data_root + 'annotations/' +
-            ('instances_train2017.json' if use_coco else 'pascal_trainval0712.json'),
-        img_prefix=data_root + ('train2017/' if use_coco else 'images/'),
-        # img_scale=(1133, 800),
+        ann_file=(data_root + 'annotations/instances_train2017.json') if use_coco
+            else [data_root + 'VOC2007/ImageSets/Main/trainval.txt',
+                data_root + 'VOC2012/ImageSets/Main/trainval.txt'],
+        img_prefix=(data_root + 'train2017/') if use_coco
+            else [data_root + 'VOC2007/', data_root + 'VOC2012/'],
         img_scale=(512, 512) if use_coco else (384, 384),
-        keep_res=False,
+        # img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        # flip_ratio=0.,
+        resize_keep_ratio=False,
+        flip_ratio=0.5,
         with_mask=False,
         with_crowd=False,
+        with_ctdet=True,
         with_label=True),
     val=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/' +
-            ('instances_val2017.json' if use_coco else 'pascal_val2012.json'),
-        img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(512, 512) if use_coco else (384, 384),
+        ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
+            else 'VOC2007/ImageSets/Main/test.txt'),
+        img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
+        # img_scale=(512, 512) if use_coco else (384, 384),
+        img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
         flip_ratio=0,
         with_mask=False,
         with_crowd=True,
+        with_ctdet=True,
         with_label=True),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/' +
-            ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
-            # ('instances_val2017.json' if use_coco else 'pascal_test2007.json'),
-        img_prefix=data_root + ('val2017/' if use_coco else 'images/'),
-        img_scale=(512, 512) if use_coco else (384, 384),
+        ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
+            else 'VOC2007/ImageSets/Main/test.txt'),
+        img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
+        # img_scale=(512, 512) if use_coco else (384, 384),
+        img_scale=(1,1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        flip_ratio=0,
+        flip_ratio=1,
         with_mask=False,
         with_label=False,
+        with_ctdet=True,
         test_mode=True))
 # optimizer
-optimizer = dict(type='Adam', lr=1.25e-4)
+optimizer = dict(type='Adam', lr=2.5e-4)
 # optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 optimizer_config = {}
 # learning policy
@@ -185,21 +207,21 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[8, 11])
-checkpoint_config = dict(interval=1)
+    step=[90, 120])
+checkpoint_config = dict(interval=10)
 # yapf:disable
 log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
+        dict(type='TensorboardLoggerHook')
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 12
+total_epochs = 140
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_coco'
+work_dir = 'data/work_dirs/centernet_dla_coco_12'
 load_from = None
 resume_from = None
-workflow = [('train', 12)]
+workflow = [('train', 1)]

@@ -268,18 +268,45 @@ class CenterNet(TwoStageDetector):
                     detections.append(detection)
         return detections
 
-    # TODO: change to simple test after the issue with img being list is solved
-    def forward_test(self, img, img_meta, **kwargs):
+    def simple_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
-            output = self.backbone(img[-1].type(torch.cuda.FloatTensor))
+            output = self.backbone(img.type(torch.cuda.FloatTensor))
             if self.rpn_head:
                 output = self.rpn_head(output)[-1]
+
             dets = ctdet_decode(output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
-            # breakpoint()
             results = self.post_process_test(dets, img_meta[-1][-1])
+            return results
+
+    def aug_test(self, imgs, img_metas, **kwargs):
+        """Test with Augmentations
+
+        * Testing with flip augmentation
+        * TODO - Multi scale testing
+        """
+        with torch.no_grad():
+            imgs = torch.cat(imgs, 0)
+            output = self.backbone(imgs.type(torch.cuda.FloatTensor))
+            if self.rpn_head:
+                output = self.rpn_head(output)[-1]
+
+            hm = output['hm'].sigmoid_()
+            wh = output['wh']
+            reg = output['reg']
+            # if self.flip_test:
+            hm = (hm[0:1] + torch.flip(hm[1:2], [3])) / 2
+            wh = (wh[0:1] + torch.flip(wh[1:2], [3])) / 2
+            reg = reg[0:1]
+
+            dets = ctdet_decode(hm, wh, reg=reg)
+            if self.test_cfg['debug'] >= 2:
+                self.debug(self.debugger, imgs.type(torch.cuda.FloatTensor), dets, output)
+            # does not test multiple scales yet
+            results = self.post_process_test(dets, img_metas[-1][-1])
             return results
 
     def debug(self, debugger, images, dets, output, scale=1):
