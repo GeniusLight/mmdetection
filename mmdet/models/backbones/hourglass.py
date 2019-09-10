@@ -313,7 +313,3 @@ class HourglassNet(exkp):
 
     def init_weights(self, pretrained=None):
         print('initializing weights')
-
-# def get_large_hourglass_net(num_layers, heads, head_conv):
-#   model = HourglassNet(heads, 2)
-#   return model

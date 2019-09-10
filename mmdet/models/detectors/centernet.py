@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import cv2
-from .debugger import Debugger
+from ..utils.ctdet_debugger import Debugger
 
 def transform_preds(coords, center, scale, output_size):
     target_coords = np.zeros(coords.shape)
@@ -201,17 +201,13 @@ class CenterNet(TwoStageDetector):
             self.debugger = Debugger(dataset=DATASETS.get('Ctdet'), theme='black', num_classes=self.num_classes)
 
     def forward_train(self, img, img_meta, **kwargs):
-        # print('in forward train')
         output = self.backbone(img.type(torch.cuda.FloatTensor))
-        # breakpoint()
         if self.rpn_head:
             output = self.rpn_head(output)
-        # print(kwargs)
-        # loss, loss_stats = self.loss(output, **kwargs)
+
         losses = self.rpn_head.loss(output, **kwargs)
 
-        # import pdb; pdb.set_trace()
-        return losses#, loss_stats
+        return losses
 
     def post_process_test(self, dets, meta, scale=1):
         dets = dets.detach().cpu().numpy()
@@ -219,17 +215,14 @@ class CenterNet(TwoStageDetector):
         dets = ctdet_post_process(
                 dets.copy(), [meta['ctdet_c']], [meta['ctdet_s']],
                 meta['ctdet_out_height'], meta['ctdet_out_width'], self.num_classes)
-        # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
             dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
             dets[0][j][:, :4] /= scale
         # since not hanlding scales yet
-        # return self.merge_outputs(dets[0])
         return self.merge_outputs(dets)
 
     def merge_outputs(self, detections):
         results = []
-        # for j in range(1, self.num_classes + 1):
         for j in range(self.num_classes):
             results.append(np.concatenate(
                 [detection[j] for detection in detections], axis=0).astype(np.float32))
@@ -243,34 +236,11 @@ class CenterNet(TwoStageDetector):
             for j in range(1, self.num_classes + 1):
                 keep_inds = (results[j][:, 4] >= thresh)
                 results[j] = results[j][keep_inds]
-        # import pdb; pdb.set_trace()
         return results
-
-    def convert_eval_format(self, all_bboxes):
-        # import pdb; pdb.set_trace()
-        detections = []
-        for image_id in all_bboxes:
-            for cls_ind in all_bboxes[image_id]:
-                category_id = self.test_cfg['valid_ids'][cls_ind]
-                for bbox in all_bboxes[image_id][cls_ind]:
-                    bbox[2] -= bbox[0]
-                    bbox[3] -= bbox[1]
-                    score = bbox[4]
-                    bbox_out  = list(map(lambda x: float("{:.2f}".format(x)), bbox[0:4]))
-                    # bbox_out  = list(map(float("{:.2f}".format(x)), bbox[0:4]))
-
-                    detection = {
-                        "image_id": int(image_id),
-                        "category_id": int(category_id),
-                        "bbox": bbox_out,
-                        "score": float("{:.2f}".format(score))
-                    }
-                    detections.append(detection)
-        return detections
 
     def simple_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
-            output = self.backbone(img.type(torch.cuda.FloatTensor))
+            output = self.extract_feat(img)
             if self.rpn_head:
                 output = self.rpn_head(output)[-1]
 
@@ -279,7 +249,7 @@ class CenterNet(TwoStageDetector):
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor), dets, output)
             # does not test multiple scales yet
-            results = self.post_process_test(dets, img_meta[-1][-1])
+            results = self.post_process_test(dets, img_meta[-1])
             return results
 
     def aug_test(self, imgs, img_metas, **kwargs):
@@ -290,7 +260,7 @@ class CenterNet(TwoStageDetector):
         """
         with torch.no_grad():
             imgs = torch.cat(imgs, 0)
-            output = self.backbone(imgs.type(torch.cuda.FloatTensor))
+            output = self.extract_feat(imgs)
             if self.rpn_head:
                 output = self.rpn_head(output)[-1]
 

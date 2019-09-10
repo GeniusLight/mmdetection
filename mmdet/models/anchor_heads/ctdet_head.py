@@ -4,10 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import math
 
-from mmdet.core import (delta2bbox, multiclass_nms, bbox_target, force_fp32,
-                        auto_fp16)
-from ..builder import build_loss
-from ..losses import accuracy
+from mmdet.core import auto_fp16
 from ..registry import HEADS
 
 def gaussian_radius(det_size, min_overlap=0.7):
@@ -125,17 +122,9 @@ class RegL1Loss(nn.Module):
 class CtdetLoss(torch.nn.Module):
     def __init__(self):
         super(CtdetLoss, self).__init__()
-        # self.crit = torch.nn.MSELoss() if opt.mse_loss else FocalLoss()
-        # self.crit_reg = RegL1Loss() if opt.reg_loss == 'l1' else \
-        #           RegLoss() if opt.reg_loss == 'sl1' else None
-        # self.crit_wh = torch.nn.L1Loss(reduction='sum') if opt.dense_wh else \
-        #           NormRegL1Loss() if opt.norm_wh else \
-        #           RegWeightedL1Loss() if opt.cat_spec_wh else self.crit_reg
         self.crit = FocalLoss()
-        self.crit_reg = RegL1Loss()
-        # self.crit_wh = self.crit_reg
-        # self.opt = opt
-        # opts
+        self.crit_reg_wh = RegL1Loss()
+
         self.num_stacks = 1
         self.wh_weight = 0.1
         self.off_weight = 1
@@ -166,12 +155,12 @@ class CtdetLoss(torch.nn.Module):
 
             hm_loss += self.crit(output['hm'], batch['hm']) / self.num_stacks
             if self.wh_weight > 0:
-                wh_loss += self.crit_reg(
+                wh_loss += self.crit_reg_wh(
                     output['wh'], batch['reg_mask'],
                     batch['ind'], batch['wh']) / self.num_stacks
 
             if self.off_weight > 0:
-              off_loss += self.crit_reg(output['reg'], batch['reg_mask'],
+              off_loss += self.crit_reg_wh(output['reg'], batch['reg_mask'],
                                     batch['ind'], batch['reg']) / self.num_stacks
 
         losses = {'hm_loss': self.hm_weight * hm_loss,
@@ -235,43 +224,10 @@ class CtdetHead(nn.Module):
                 else:
                     fill_fc_weights(fc)
             self.__setattr__(head, fc)
-        # assert with_cls or with_reg
-        # self.with_avg_pool = with_avg_pool
-        # self.with_cls = with_cls
-        # self.with_reg = with_reg
-        # self.roi_feat_size = roi_feat_size
-        # self.in_channels = in_channels
-        # self.num_classes = num_classes
-        # self.target_means = target_means
-        # self.target_stds = target_stds
-        # self.reg_class_agnostic = reg_class_agnostic
-        # self.fp16_enabled = False
-
-        # self.loss_cls = build_loss(loss_cls)
-        # self.loss_bbox = build_loss(loss_bbox)
-        # self.loss_ctdet = build_loss(loss_ctdet)
         self.loss_ctdet = CtdetLoss()
-
-        # in_channels = self.in_channels
-        # if self.with_avg_pool:
-        #     self.avg_pool = nn.AvgPool2d(roi_feat_size)
-        # else:
-        #     in_channels *= (self.roi_feat_size * self.roi_feat_size)
-        # if self.with_cls:
-        #     self.fc_cls = nn.Linear(in_channels, num_classes)
-        # if self.with_reg:
-        #     out_dim_reg = 4 if reg_class_agnostic else 4 * num_classes
-        #     self.fc_reg = nn.Linear(in_channels, out_dim_reg)
-        # self.debug_imgs = None
 
     def init_weights(self):
         print('initializing head weights')
-        # if self.with_cls:
-        #     nn.init.normal_(self.fc_cls.weight, 0, 0.01)
-        #     nn.init.constant_(self.fc_cls.bias, 0)
-        # if self.with_reg:
-        #     nn.init.normal_(self.fc_reg.weight, 0, 0.001)
-        #     nn.init.constant_(self.fc_reg.bias, 0)
 
     @auto_fp16()
     def forward(self, x):
