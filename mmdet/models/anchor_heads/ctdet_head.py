@@ -132,21 +132,54 @@ class RegL1Loss(nn.Module):
         return loss
 
 
+class CrossEntropyLoss(nn.Module):
+
+    def __init__(self):
+        super(CrossEntropyLoss, self).__init__()
+        self.loss = nn.CrossEntropyLoss(reduction='sum')
+
+    def forward(self, output, mask, ind, target):
+        pred = _tranpose_and_gather_feat(output, ind)
+        # breakpoint()
+        pred_list = []
+        target_list = []
+        for i, each in enumerate(ind.squeeze()):
+            idx = each.nonzero()
+            pred_list.append(pred[i][idx].view(-1, 20))
+            target_list.append(target[i][idx].view(-1))
+            # print(target[i][idx].view(-1).shape)
+
+        # breakpoint()
+        pred = torch.cat(pred_list)
+        target = torch.cat(target_list)
+
+        # breakpoint()
+
+        # pred = pred.view(-1, 20)
+        # target = target.view(-1, 1).squeeze()
+        # idx = target[target]
+        loss = self.loss(pred, target)
+        # loss = self.loss(pred, target)
+        return loss
+
+
 class CtdetLoss(torch.nn.Module):
 
     def __init__(self):
         super(CtdetLoss, self).__init__()
         self.crit = FocalLoss()
         self.crit_reg_wh = RegL1Loss()
+        self.crit_class = CrossEntropyLoss()
 
         self.num_stacks = 1
         self.wh_weight = 0.1
         self.off_weight = 1
         self.hm_weight = 1
+        self.class_weight = 1
 
     def forward(self, outputs, **kwargs):
         batch = kwargs
-        hm_loss, wh_loss, off_loss = 0, 0, 0
+        hm_loss, wh_loss, off_loss, class_loss = 0, 0, 0, 0
         for s in range(self.num_stacks):
             output = outputs[s]
             output['hm'] = torch.clamp(
@@ -163,10 +196,15 @@ class CtdetLoss(torch.nn.Module):
                                              batch['ind'],
                                              batch['reg']) / self.num_stacks
 
+            class_loss += self.crit_class(output['class_id'], batch['reg_mask'],
+                                            batch['ind'],
+                                            batch['class_id']) / self.num_stacks
+
         losses = {
             'hm_loss': self.hm_weight * hm_loss,
             'wh_loss': self.wh_weight * wh_loss,
-            'off_loss': self.off_weight * off_loss
+            'off_loss': self.off_weight * off_loss,
+            'class_loss': self.class_weight * class_loss
         }
         return losses
 
@@ -206,20 +244,39 @@ class CtdetHead(nn.Module):
         for head in self.heads:
             classes = self.heads[head]
             if head_conv > 0:
-                fc = nn.Sequential(
-                    nn.Conv2d(
-                        64, head_conv, kernel_size=3, padding=1, bias=True),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(
-                        head_conv,
-                        classes,
-                        kernel_size=1,
-                        stride=1,
-                        padding=1 // 2,
-                        bias=True))
+                self.gen = nn.Sequential(
+                            nn.Conv2d(
+                                64, head_conv, kernel_size=3, padding=1, bias=True),
+                            nn.ReLU(inplace=True))
+                if 'label' in head:
+                    fc = nn.Conv2d(
+                            head_conv,
+                            classes,
+                            kernel_size=1,
+                            stride=1,
+                            padding=1 // 2,
+                            bias=True)
                 if 'hm' in head:
-                    fc[-1].bias.data.fill_(-2.19)
+                    fc = nn.Conv2d(
+                            head_conv,
+                            classes,
+                            kernel_size=1,
+                            stride=1,
+                            padding=1 // 2,
+                            bias=True)
+                    fc.bias.data.fill_(-2.19)
                 else:
+                    fc = nn.Sequential(
+                        nn.Conv2d(
+                            64, head_conv, kernel_size=3, padding=1, bias=True),
+                        nn.ReLU(inplace=True),
+                        nn.Conv2d(
+                            head_conv,
+                            classes,
+                            kernel_size=1,
+                            stride=1,
+                            padding=1 // 2,
+                            bias=True))
                     fill_fc_weights(fc)
             else:
                 fc = nn.Conv2d(
@@ -242,8 +299,13 @@ class CtdetHead(nn.Module):
     @auto_fp16()
     def forward(self, x):
         z = {}
+        hmx = self.gen(x)
         for head in self.heads:
-            z[head] = self.__getattr__(head)(x)
+            # z[head] = self.__getattr__(head)(x)
+            if 'label' in head or 'hm' in head:
+                z[head] = self.__getattr__(head)(hmx)
+            else:
+                z[head] = self.__getattr__(head)(x)
         return [z]
 
     @auto_fp16()

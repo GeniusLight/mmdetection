@@ -303,8 +303,12 @@ class CustomDataset(Dataset):
             output_w = input_w // 4
             trans_output = get_affine_transform(c, s, 0, [output_w, output_h])
 
-            hm = np.zeros((self.num_classes, output_h, output_w),
+            # hm = np.zeros((self.num_classes, output_h, output_w),
+            #               dtype=np.float32)
+            hm = np.zeros((1, output_h, output_w),
                           dtype=np.float32)
+            # classes = np.zeros((self.max_objs, self.num_classes), dtype=np.float32)
+            classes = np.zeros((self.max_objs, 1), dtype=np.int)
             wh = np.zeros((self.max_objs, 2), dtype=np.float32)
             reg = np.zeros((self.max_objs, 2), dtype=np.float32)
             ind = np.zeros((self.max_objs), dtype=np.int64)
@@ -330,10 +334,12 @@ class CustomDataset(Dataset):
                                    (bbox[1] + bbox[3]) / 2],
                                   dtype=np.float32)
                     ct_int = ct.astype(np.int32)
-                    draw_umich_gaussian(hm[cls_id], ct_int, radius)
+                    draw_umich_gaussian(hm[0], ct_int, radius)
                     wh[k] = 1. * w, 1. * h
                     ind[k] = ct_int[1] * output_w + ct_int[0]
                     reg[k] = ct - ct_int
+                    # classes[cls_id] = 1
+                    classes[k] = cls_id
                     reg_mask[k] = 1
 
         ori_shape = (img_info['height'], img_info['width'], 3)
@@ -366,6 +372,7 @@ class CustomDataset(Dataset):
                 to_tensor(ind).unsqueeze(1), stack=True, pad_dims=1)
             data['wh'] = DC(to_tensor(wh), stack=True, pad_dims=1)
             data['reg'] = DC(to_tensor(reg), stack=True, pad_dims=1)
+            data['class_id'] = DC(to_tensor(classes), stack=True, pad_dims=1)
 
         return data
 

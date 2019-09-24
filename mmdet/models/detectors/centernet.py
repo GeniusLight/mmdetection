@@ -127,7 +127,7 @@ def _nms(heat, kernel=3):
     return heat * keep
 
 
-def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
+def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100, class_id=None):
     batch, cat, height, width = heat.size()
 
     # heat = torch.sigmoid(heat)
@@ -150,6 +150,12 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
         wh = wh.gather(2, clses_ind).view(batch, K, 2)
     else:
         wh = wh.view(batch, K, 2)
+    
+    if class_id is not None:
+        clses = _tranpose_and_gather_feat(class_id, inds)
+        clses = torch.argmax(clses, dim=2)
+        # breakpoint()
+    
     clses = clses.view(batch, K, 1).float()
     scores = scores.view(batch, K, 1)
     bboxes = torch.cat([
@@ -261,7 +267,7 @@ class CenterNet(TwoStageDetector):
                 output = self.rpn_head(output)[-1]
 
             dets = ctdet_decode(
-                output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+                output['hm'].sigmoid_(), output['wh'], reg=output['reg'], class_id=output['class_id'], K=50)
 
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img.type(torch.cuda.FloatTensor),
@@ -283,14 +289,16 @@ class CenterNet(TwoStageDetector):
                 output = self.rpn_head(output)[-1]
 
             hm = output['hm'].sigmoid_()
+            class_id = output['class_id']
             wh = output['wh']
             reg = output['reg']
             # if self.flip_test:
             hm = (hm[0:1] + torch.flip(hm[1:2], [3])) / 2
+            class_id = (class_id[0:1] + torch.flip(class_id[1:2], [3])) / 2
             wh = (wh[0:1] + torch.flip(wh[1:2], [3])) / 2
             reg = reg[0:1]
 
-            dets = ctdet_decode(hm, wh, reg=reg)
+            dets = ctdet_decode(hm, wh, reg=reg, class_id=class_id)
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, imgs.type(torch.cuda.FloatTensor),
                            dets, output)

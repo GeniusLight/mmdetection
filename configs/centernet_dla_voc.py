@@ -18,7 +18,7 @@ model = dict(
         heads=dict(hm=80 if use_coco else 20, wh=2, reg=2),
         last_level=5),
     rpn_head=dict(
-        type='CtdetHead', heads=dict(hm=80 if use_coco else 20, wh=2, reg=2)))
+        type='CtdetHead', heads=dict(hm=80 if use_coco else 1, wh=2, reg=2, class_id=20)))
 cudnn_benchmark = True
 #         depth=50,
 #         num_stages=4,
@@ -174,11 +174,11 @@ data = dict(
         img_scale=(1, 1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        flip_ratio=0,
+        flip_ratio=1,
         with_mask=False,
-        with_crowd=True,
+        with_crowd=False,
         with_ctdet=True,
-        with_label=True),
+        with_label=False),
     test=dict(
         type=dataset_type,
         ann_file=data_root + ('annotations/instances_val2017.json' if use_coco
@@ -188,7 +188,7 @@ data = dict(
         img_scale=(1, 1),
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        flip_ratio=1,
+        flip_ratio=1 ,
         with_mask=False,
         with_label=False,
         with_ctdet=True,
@@ -203,7 +203,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -214,7 +214,7 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = 'data/work_dirs/centernet_dla_pascal'
