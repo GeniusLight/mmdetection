@@ -7,6 +7,8 @@ from ..registry import DATASETS, DETECTORS
 from ..utils.ctdet_debugger import Debugger
 from .two_stage import TwoStageDetector
 
+from mmdet.core import bbox2roi, bbox2result, build_assigner, build_sampler
+
 
 def transform_preds(coords, center, scale, output_size):
     target_coords = np.zeros(coords.shape)
@@ -216,14 +218,81 @@ class CenterNet(TwoStageDetector):
                 theme='black',
                 num_classes=self.num_classes)
 
-    def forward_train(self, img, img_meta, **kwargs):
-        output = self.backbone(img.type(torch.cuda.FloatTensor))
+    def forward_train(self, img, img_meta, gt_bboxes, gt_labels, gt_bboxes_ignore=None, **kwargs):
+        outputs = self.backbone(img.type(torch.cuda.FloatTensor))
         if self.rpn_head:
-            output = self.rpn_head(output)
+            output = self.rpn_head(outputs)
 
         losses = self.rpn_head.loss(output, **kwargs)
 
+        if self.with_bbox:
+            output = output[-1]
+            dets = ctdet_decode(
+                output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+            dets = self.post_process_train(dets, img_meta[-1])
+            breakpoint()
+
+            num_imgs = img.size(0)
+
+            proposal_list = dets[:, :, :5].view(num_imgs, -1, 5)
+
+            bbox_assigner = build_assigner(self.train_cfg.rcnn.assigner)
+            bbox_sampler = build_sampler(
+                self.train_cfg.rcnn.sampler, context=self)
+
+            if gt_bboxes_ignore is None:
+                gt_bboxes_ignore = [None for _ in range(num_imgs)]
+            sampling_results = []
+            for i in range(num_imgs):
+                assign_result = bbox_assigner.assign(
+                    proposal_list[i], gt_bboxes[i], gt_bboxes_ignore[i],
+                    gt_labels[i])
+                sampling_result = bbox_sampler.sample(
+                    assign_result,
+                    proposal_list[i],
+                    gt_bboxes[i],
+                    gt_labels[i],
+                    feats=outputs)
+                    # feats=[lvl_feat[i][None] for lvl_feat in outputs])
+                sampling_results.append(sampling_result)
+
+
+
+            # output = output[-1]
+            # dets = ctdet_decode(
+            #     output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+            # results = self.post_process_test(dets, img_meta[-1])
+            # breakpoint()
+            rois = bbox2roi([res.bboxes for res in sampling_results])
+            # rois = bbox2roi([dets[:,:, :4].view(-1, 4)])
+            # TODO: a more flexible way to decide which feature maps to use
+            # breakpoint()
+            bbox_feats = self.bbox_roi_extractor(
+                [outputs], rois)
+            # breakpoint()
+            if self.with_shared_head:
+                bbox_feats = self.shared_head(bbox_feats)
+            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+
+            bbox_targets = self.bbox_head.get_target(
+                sampling_results, gt_bboxes, gt_labels, self.train_cfg.rcnn)
+            loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+                                            *bbox_targets)
+            losses.update(loss_bbox)
+
         return losses
+
+    def post_process_train(self, dets, meta, scale=1):
+        dets = dets.detach().cpu().numpy()
+        dets = dets.reshape(1, -1, dets.shape[2])
+        dets = ctdet_post_process(dets.copy(), [meta['ctdet_c']],
+                                  [meta['ctdet_s']], meta['ctdet_out_height'],
+                                  meta['ctdet_out_width'], self.num_classes)
+        for j in range(self.num_classes):
+            dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 5)
+            dets[0][j][:, :4] /= scale
+        # since not hanlding scales yet
+        return dets
 
     def post_process_test(self, dets, meta, scale=1):
         dets = dets.detach().cpu().numpy()
@@ -249,7 +318,7 @@ class CenterNet(TwoStageDetector):
         if len(scores) > self.max_per_image:
             kth = len(scores) - self.max_per_image
             thresh = np.partition(scores, kth)[kth]
-            for j in range(1, self.num_classes + 1):
+            for j in range(self.num_classes):
                 keep_inds = (results[j][:, 4] >= thresh)
                 results[j] = results[j][keep_inds]
         return results

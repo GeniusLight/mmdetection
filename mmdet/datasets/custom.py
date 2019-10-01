@@ -343,6 +343,17 @@ class CustomDataset(Dataset):
             pad_shape=pad_shape,
             scale_factor=scale_factor,
             flip=flip)
+        if self.with_ctdet:
+            img_meta = dict(
+                ori_shape=ori_shape,
+                img_shape=img_shape,
+                pad_shape=pad_shape,
+                scale_factor=scale_factor,
+                flip=flip,
+                ctdet_c=c,
+                ctdet_s=s,
+                ctdet_out_height=output_h,
+                ctdet_out_width=output_w)
 
         data = dict(
             img=DC(to_tensor(img), stack=True),

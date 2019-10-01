@@ -18,7 +18,26 @@ model = dict(
         heads=dict(hm=80 if use_coco else 20, wh=2, reg=2),
         last_level=5),
     rpn_head=dict(
-        type='CtdetHead', heads=dict(hm=80 if use_coco else 20, wh=2, reg=2)))
+        type='CtdetHead', heads=dict(hm=80 if use_coco else 20, wh=2, reg=2)),
+    bbox_roi_extractor=dict(
+        type='SingleRoIExtractor',
+        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
+        out_channels=64,
+        featmap_strides=[4]),
+    bbox_head=dict(
+        type='SharedFCBBoxHead',
+        num_fcs=2,
+        in_channels=64,
+        fc_out_channels=1024,
+        roi_feat_size=7,
+        num_classes=20,
+        target_means=[0., 0., 0., 0.],
+        target_stds=[0.1, 0.1, 0.2, 0.2],
+        reg_class_agnostic=False,
+        loss_cls=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0))
+    )
 cudnn_benchmark = True
 #         depth=50,
 #         num_stages=4,
@@ -61,7 +80,22 @@ cudnn_benchmark = True
 #             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
 #         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
 # # model training and testing settings
-train_cfg = dict(a=10)
+train_cfg = dict(
+        rcnn=dict(
+            assigner=dict(
+                type='MaxIoUAssigner',
+                pos_iou_thr=0.5,
+                neg_iou_thr=0.5,
+                min_pos_iou=0.5,
+                ignore_iof_thr=-1),
+            sampler=dict(
+                type='RandomSampler',
+                num=512,
+                pos_fraction=0.25,
+                neg_pos_ub=-1,
+                add_gt_as_proposals=True),
+            pos_weight=-1,
+            debug=False))
 #     rpn=dict(
 #         assigner=dict(
 #             type='MaxIoUAssigner',
@@ -203,7 +237,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -214,7 +248,7 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 12
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = 'data/work_dirs/centernet_dla_pascal'
