@@ -61,7 +61,7 @@ cudnn_benchmark = True
 #             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
 #         loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
 # # model training and testing settings
-train_cfg = dict(a=10)
+
 #     rpn=dict(
 #         assigner=dict(
 #             type='MaxIoUAssigner',
@@ -116,6 +116,13 @@ else:
     ]
     img_norm_cfg = dict(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], to_rgb=True)
+
+train_cfg = dict(
+    num_classes=80 if use_coco else 20,
+    valid_ids={i + 1: v
+               for i, v in enumerate(_valid_ids)},
+    img_norm_cfg=img_norm_cfg,
+    debug=4)
 
 test_cfg = dict(
     num_classes=80 if use_coco else 20,
@@ -186,9 +193,10 @@ data = dict(
         img_prefix=data_root + ('val2017/' if use_coco else 'VOC2007/'),
         # img_scale=(512, 512) if use_coco else (384, 384),
         img_scale=(1, 1),
+        resize_keep_ratio=False,
         img_norm_cfg=img_norm_cfg,
         size_divisor=31,
-        flip_ratio=1 ,
+        flip_ratio=0,
         with_mask=False,
         with_label=False,
         with_ctdet=True,

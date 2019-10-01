@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ..registry import DATASETS, DETECTORS
 from ..utils.ctdet_debugger import Debugger
@@ -150,12 +151,12 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100, class_id=None):
         wh = wh.gather(2, clses_ind).view(batch, K, 2)
     else:
         wh = wh.view(batch, K, 2)
-    
+
     if class_id is not None:
         clses = _tranpose_and_gather_feat(class_id, inds)
         clses = torch.argmax(clses, dim=2)
         # breakpoint()
-    
+
     clses = clses.view(batch, K, 1).float()
     scores = scores.view(batch, K, 1)
     bboxes = torch.cat([
@@ -215,17 +216,27 @@ class CenterNet(TwoStageDetector):
         # self.loss = CtdetLoss()
         self.max_per_image = 100
         self.test_cfg = test_cfg
+        self.train_cfg = train_cfg
         if test_cfg:
             self.num_classes = test_cfg['num_classes']
-            self.debugger = Debugger(
-                dataset=DATASETS.get('Ctdet'),
-                theme='black',
-                num_classes=self.num_classes)
+        self.debugger = Debugger(
+            dataset=DATASETS.get('Ctdet'),
+            theme='black',
+            num_classes=self.num_classes)
 
     def forward_train(self, img, img_meta, **kwargs):
         output = self.backbone(img.type(torch.cuda.FloatTensor))
         if self.rpn_head:
             output = self.rpn_head(output)
+
+        # breakpoint()
+        image = img[0].detach().cpu().numpy().transpose(1, 2, 0)
+        image = ((image * self.test_cfg['img_norm_cfg']['std'] +
+                    self.test_cfg['img_norm_cfg']['mean']) * 255).astype(
+                        np.uint8)
+        hm = self.debugger.gen_colormap(kwargs['hm'][0].detach().cpu().numpy())
+        self.debugger.add_blend_img(image, hm, 'gt_hm')
+        self.debugger.show_all_imgs(pause=True)
 
         losses = self.rpn_head.loss(output, **kwargs)
 
@@ -289,7 +300,7 @@ class CenterNet(TwoStageDetector):
                 output = self.rpn_head(output)[-1]
 
             hm = output['hm'].sigmoid_()
-            class_id = output['class_id']
+            class_id = F.softmax(output['class_id'], 1)
             wh = output['wh']
             reg = output['reg']
             # if self.flip_test:
@@ -302,11 +313,12 @@ class CenterNet(TwoStageDetector):
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, imgs.type(torch.cuda.FloatTensor),
                            dets, output)
+                self.debugger.show_all_imgs(pause=True)
             # does not test multiple scales yet
             results = self.post_process_test(dets, img_metas[-1][-1])
             return results
 
-    def debug(self, debugger, images, dets, output, scale=1):
+    def debug(self, debugger, images, dets, output, scale=1, gt=None):
         detection = dets.detach().cpu().numpy().copy()
         detection[:, :, :4] *= 4
         for i in range(1):
@@ -317,6 +329,9 @@ class CenterNet(TwoStageDetector):
             pred = debugger.gen_colormap(
                 output['hm'][i].detach().cpu().numpy())
             debugger.add_blend_img(img, pred, 'pred_hm_{:.1f}'.format(scale))
+            # if gt is not None:
+            #     gt = gt[i].detach().cpu().numpy().transpose(
+            #     debugger.add_blend_img(img, gt, 'gt_hm_{:.1f}'.format(scale))
             debugger.add_img(img, img_id='out_pred_{:.1f}'.format(scale))
             for k in range(len(dets[i])):
                 if detection[i, k, 4] > 0.1:

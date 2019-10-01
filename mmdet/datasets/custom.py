@@ -395,17 +395,17 @@ class CustomDataset(Dataset):
                 new_height = int(height * scale[0])
                 new_width = int(width * scale[1])
                 img_shape = (new_height, new_width)
-                # if self.opt.fix_res:
-                #     inp_height, inp_width=self.opt.input_h,self.opt.input_w
-                #     c = np.array([new_width / 2., new_height / 2.],
-                #           dtype=np.float32)
-                #     s = max(height, width) * 1.0
-                # else:
-                inp_height = (new_height | self.size_divisor) + 1
-                inp_width = (new_width | self.size_divisor) + 1
-                c = np.array([new_width // 2, new_height // 2],
-                             dtype=np.float32)
-                s = np.array([inp_width, inp_height], dtype=np.float32)
+                if self.resize_keep_ratio:
+                    inp_height = (new_height | self.size_divisor) + 1
+                    inp_width = (new_width | self.size_divisor) + 1
+                    c = np.array([new_width // 2, new_height // 2],
+                                 dtype=np.float32)
+                    s = np.array([inp_width, inp_height], dtype=np.float32)
+                else:
+                    inp_height, inp_width = (384, 384)
+                    c = np.array([new_width / 2., new_height / 2.],
+                          dtype=np.float32)
+                    s = max(height, width) * 1.0
 
                 trans_input = get_affine_transform(c, s, 0,
                                                    [inp_width, inp_height])
