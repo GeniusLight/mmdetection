@@ -230,13 +230,13 @@ class CenterNet(TwoStageDetector):
             output = self.rpn_head(output)
 
         # breakpoint()
-        image = img[0].detach().cpu().numpy().transpose(1, 2, 0)
-        image = ((image * self.test_cfg['img_norm_cfg']['std'] +
-                    self.test_cfg['img_norm_cfg']['mean']) * 255).astype(
-                        np.uint8)
-        hm = self.debugger.gen_colormap(kwargs['hm'][0].detach().cpu().numpy())
-        self.debugger.add_blend_img(image, hm, 'gt_hm')
-        self.debugger.show_all_imgs(pause=True)
+        # image = img[0].detach().cpu().numpy().transpose(1, 2, 0)
+        # image = ((image * self.test_cfg['img_norm_cfg']['std'] +
+        #             self.test_cfg['img_norm_cfg']['mean']) * 255).astype(
+        #                 np.uint8)
+        # hm = self.debugger.gen_colormap(kwargs['hm'][0].detach().cpu().numpy())
+        # self.debugger.add_blend_img(image, hm, 'gt_hm')
+        # self.debugger.show_all_imgs(pause=True)
 
         losses = self.rpn_head.loss(output, **kwargs)
 

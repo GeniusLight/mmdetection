@@ -211,7 +211,7 @@ lr_config = dict(
     # warmup='linear',
     # warmup_iters=500,
     # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+    step=[180, 210])
 checkpoint_config = dict(interval=5)
 # yapf:disable
 log_config = dict(
@@ -222,7 +222,7 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 230
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = 'data/work_dirs/centernet_dla_pascal'
