@@ -121,6 +121,8 @@ class BBoxHead(nn.Module):
             else:
                 pos_bbox_pred = bbox_pred.view(bbox_pred.size(0), -1,
                                                4)[pos_inds, labels[pos_inds]]
+            if bbox_targets[pos_inds].numel() <= 0:
+                return losses
             losses['loss_bbox'] = self.loss_bbox(
                 pos_bbox_pred,
                 bbox_targets[pos_inds],

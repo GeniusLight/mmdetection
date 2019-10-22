@@ -946,13 +946,18 @@ class CtdetTrainTransforms(object):
             img_shape=img_shape,
             pad_shape=pad_shape,
             scale_factor=scale_factor,
-            flip=flip)
+            flip=flip,
+            ctdet_c=c,
+            ctdet_s=s,
+            ctdet_out_height=output_h,
+            ctdet_out_width=output_w,)
 
         data = dict(
             img=DC(to_tensor(img), stack=True),
             img_meta=DC(img_meta, cpu_only=True),
             gt_bboxes=DC(to_tensor(results['gt_bboxes'])))
         data['gt_labels'] = DC(to_tensor(results['gt_labels']))
+        data['gt_bboxes_ignore'] = DC(to_tensor(results['gt_bboxes_ignore']))
         data['hm'] = DC(to_tensor(hm), stack=True)
         data['reg_mask'] = DC(
             to_tensor(reg_mask).unsqueeze(1), stack=True, pad_dims=1)

@@ -4,12 +4,46 @@ model = dict(
     pretrained='modelzoo://centernet_hg',
     backbone=dict(
         type='DLA',
-        base_name='dla34'),
+        base_name='dla34',
+        last_level=6),
     rpn_head=dict(
-        type='CtdetHead', heads=dict(hm=20, wh=2, reg=2)))
+        type='CtdetHead', heads=dict(hm=20, wh=2, reg=2)),
+    bbox_roi_extractor=dict(
+        type='SingleRoIExtractor',
+        roi_layer=dict(type='RoIAlign', out_size=7, sample_num=2),
+        out_channels=64,
+        featmap_strides=[4]),
+    bbox_head=dict(
+        type='SharedFCBBoxHead',
+        num_fcs=2,
+        in_channels=64,
+        fc_out_channels=256,
+        roi_feat_size=7,
+        num_classes=20,
+        target_means=[0., 0., 0., 0.],
+        target_stds=[0.1, 0.1, 0.2, 0.2],
+        reg_class_agnostic=False,
+        loss_cls=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
+        loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)))
 cudnn_benchmark = True
 
-train_cfg = dict(a=10)
+train_cfg = dict(
+    rcnn=dict(
+        assigner=dict(
+            type='MaxIoUAssigner',
+            pos_iou_thr=0.1,
+            neg_iou_thr=0.1,
+            min_pos_iou=0.1,
+            ignore_iof_thr=-1),
+        sampler=dict(
+            type='RandomSampler',
+            num=512,
+            pos_fraction=25,
+            neg_pos_ub=-1,
+            add_gt_as_proposals=True),
+        pos_weight=-1,
+        debug=False))
 
 _valid_ids = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
@@ -22,7 +56,9 @@ test_cfg = dict(
     valid_ids={i + 1: v
                for i, v in enumerate(_valid_ids)},
     img_norm_cfg=img_norm_cfg,
-    debug=0)
+    debug=0,
+    rcnn=dict(
+        score_thr=0.05, nms=dict(type='nms', iou_thr=0.5), max_per_img=100))
 
 import numpy as np
 train_pipeline = [
@@ -49,7 +85,7 @@ test_pipeline = [
     dict(
         type='MultiScaleFlipAug',
         img_scale=(1, 1),
-        flip=True,
+        flip=False,
         transforms=[
             dict(type='CtdetTestTransforms',
                 size_divisor=31,
@@ -61,17 +97,41 @@ test_pipeline = [
 
 dataset_type = 'VOCDataset'
 data_root = 'data/voc/'
+# data = dict(
+#     imgs_per_gpu=3,
+#     workers_per_gpu=0,
+#     train=dict(
+#         type=dataset_type,
+#         ann_file=[
+#             data_root + 'VOC2007/ImageSets/Main/trainval.txt',
+#             data_root + 'VOC2012/ImageSets/Main/trainval.txt'
+#         ],
+#         img_prefix=[data_root + 'VOC2007/', data_root + 'VOC2012/'],
+#         pipeline=train_pipeline),
+#     val=dict(
+#         type=dataset_type,
+#         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
+#         img_prefix=data_root + 'VOC2007/',
+#         pipeline=test_pipeline),
+#     test=dict(
+#         type=dataset_type,
+#         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
+#         img_prefix=data_root + 'VOC2007/',
+#         pipeline=test_pipeline))
 data = dict(
-    imgs_per_gpu=32,
-    workers_per_gpu=4,
+    imgs_per_gpu=3,
+    workers_per_gpu=2,
     train=dict(
-        type=dataset_type,
-        ann_file=[
-            data_root + 'VOC2007/ImageSets/Main/trainval.txt',
-            data_root + 'VOC2012/ImageSets/Main/trainval.txt'
-        ],
-        img_prefix=[data_root + 'VOC2007/', data_root + 'VOC2012/'],
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=3,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=[
+                data_root + 'VOC2007/ImageSets/Main/trainval.txt',
+                data_root + 'VOC2012/ImageSets/Main/trainval.txt'
+            ],
+            img_prefix=[data_root + 'VOC2007/', data_root + 'VOC2012/'],
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type,
         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
@@ -82,18 +142,22 @@ data = dict(
         ann_file=data_root + 'VOC2007/ImageSets/Main/test.txt',
         img_prefix=data_root + 'VOC2007/',
         pipeline=test_pipeline))
-
-# optimizer
-optimizer = dict(type='Adam', lr=1.25e-4)
-# optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-optimizer_config = {}
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
+optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy
-lr_config = dict(
-    policy='step',
-    # warmup='linear',
-    # warmup_iters=500,
-    # warmup_ratio=1.0 / 3,
-    step=[45, 60])
+lr_config = dict(policy='step', step=[3])  # actual epoch = 3 * 3 = 9
+
+# # optimizer
+# optimizer = dict(type='Adam', lr=1.25e-4)
+# # optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+# optimizer_config = {}
+# # learning policy
+# lr_config = dict(
+#     policy='step',
+#     # warmup='linear',
+#     # warmup_iters=500,
+#     # warmup_ratio=1.0 / 3,
+#     step=[8, 11])
 checkpoint_config = dict(interval=1)
 # yapf:disable
 log_config = dict(
@@ -104,10 +168,10 @@ log_config = dict(
     ])
 # yapf:enable
 # runtime settings
-total_epochs = 70
+total_epochs = 4
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-work_dir = 'data/work_dirs/centernet_dla_pascal'
-load_from = None
+work_dir = 'data/work_dirs/centernet_dla_rcnn_pascal'
+load_from = 'data/work_dirs/centernet_dla_pascal_normal70_1/epoch_70.pth'
 resume_from = None
 workflow = [('train', 1)]

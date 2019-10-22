@@ -6,6 +6,7 @@ import torch.nn as nn
 from ..registry import DATASETS, DETECTORS
 from ..utils.ctdet_debugger import Debugger
 from .two_stage import TwoStageDetector
+from mmdet.core import bbox2result, bbox2roi, build_assigner, build_sampler
 
 
 def transform_preds(coords, center, scale, output_size):
@@ -132,7 +133,7 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
 
     # heat = torch.sigmoid(heat)
     # perform nms on heatmaps
-    heat = _nms(heat)
+    # heat = _nms(heat)
 
     scores, inds, clses, ys, xs = _topk(heat, K=K)
     if reg is not None:
@@ -182,6 +183,31 @@ def ctdet_post_process(dets, c, s, h, w, num_classes):
         ret.append(top_preds)
     return ret
 
+def ctdet_post_process_train(dets, img_meta, num_classes):
+    # dets: batch x max_dets x dim
+    # return 1-based class det dict
+    ret = []
+    for i in range(dets.shape[0]):
+        meta = img_meta[i]
+        c = meta['ctdet_c']
+        s = meta['ctdet_s']
+        h = meta['ctdet_out_height']
+        w = meta['ctdet_out_width']
+        top_preds = []
+        dets[i, :, :2] = transform_preds(dets[i, :, 0:2], c, s, (w, h))
+        dets[i, :, 2:4] = transform_preds(dets[i, :, 2:4], c, s, (w, h))
+        # classes = dets[i, :, -1]
+        # for j in range(num_classes):
+        #     inds = (classes == j)
+        #     top_preds.append(
+        #         np.concatenate([
+        #             dets[i, inds, :4].astype(np.float32),
+        #             dets[i, inds, 4:5].astype(np.float32)
+        #         ],
+        #                        axis=1).tolist())
+        # ret.append(top_preds)
+    return torch.from_numpy(dets).cuda()
+
 
 @DETECTORS.register_module
 class CenterNet(TwoStageDetector):
@@ -217,11 +243,70 @@ class CenterNet(TwoStageDetector):
                 num_classes=self.num_classes)
 
     def forward_train(self, img, img_meta, **kwargs):
-        output = self.backbone(img)
-        if self.rpn_head:
-            output = self.rpn_head(output)
+        with torch.no_grad():
+            outputs = self.backbone(img)
+            if self.rpn_head:
+                output = self.rpn_head(outputs)
 
-        losses = self.rpn_head.loss(output, **kwargs)
+            # losses = self.rpn_head.loss(output, **kwargs)
+
+            if self.with_bbox:
+                # breakpoint()
+                dets = ctdet_decode(
+                    output[0]['hm'].sigmoid_(), output[0]['wh'], reg=output[0]['reg'])
+                # breakpoint()
+                dets = dets.detach().cpu().numpy()
+                proposal_list = ctdet_post_process_train(dets.copy(), img_meta, self.num_classes)
+
+                bbox_assigner = build_assigner(self.train_cfg.rcnn.assigner)
+                bbox_sampler = build_sampler(
+                    self.train_cfg.rcnn.sampler, context=self)
+                num_imgs = img.size(0)
+                gt_bboxes_ignore = kwargs['gt_bboxes_ignore']
+                gt_bboxes = kwargs['gt_bboxes']
+                gt_labels = [i - 1 for i in kwargs['gt_labels']]
+                if gt_bboxes_ignore is None:
+                    gt_bboxes_ignore = [None for _ in range(num_imgs)]
+                sampling_results = []
+                for i in range(num_imgs):
+                    assign_result = bbox_assigner.assign(proposal_list[i],
+                                                         gt_bboxes[i],
+                                                         gt_bboxes_ignore[i],
+                                                         gt_labels[i])
+                    sampling_result = bbox_sampler.sample(
+                        assign_result,
+                        proposal_list[i],
+                        gt_bboxes[i],
+                        gt_labels[i])
+                        # feats=[lvl_feat[i][None] for lvl_feat in outputs.unsqueeze(0)])
+                    sampling_results.append(sampling_result)
+
+                # breakpoint()
+                # dets = dets.detach().cpu().numpy()
+                # dets = dets.reshape(1, -1, dets.shape[2])
+                # dets = ctdet_post_process(dets.copy(), [img_meta['ctdet_c']],
+                #                           [img_meta['ctdet_s']], img_meta['ctdet_out_height'],
+                #                           img_meta['ctdet_out_width'], self.num_classes)
+                # rois = bbox2roi(dets[:,:,:4])
+                rois = bbox2roi([res.bboxes for res in sampling_results])
+                # TODO: a more flexible way to decide which feature maps to use
+                bbox_feats = self.bbox_roi_extractor(
+                    outputs.unsqueeze(0), rois)
+                # if self.with_shared_head:
+                #     bbox_feats = self.shared_head(bbox_feats)
+            # breakpoint()
+        cls_score, bbox_pred = self.bbox_head(bbox_feats)
+        # breakpoint()
+        bbox_targets = self.bbox_head.get_target(sampling_results,
+                                                 gt_bboxes, gt_labels,
+                                                 self.train_cfg.rcnn)
+        loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+                                        *bbox_targets)
+        # loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+        #                                 kwargs['gt_labels'], torch.Tensor.new_ones(kwargs['gt_labels']),
+        #                                 kwargs['gt_bboxes'], torch.Tensor.new_ones(kwargs['gt_labels'], 4))
+        return loss_bbox
+        losses.update(loss_bbox)
 
         return losses
 
@@ -256,12 +341,37 @@ class CenterNet(TwoStageDetector):
 
     def simple_test(self, img, img_meta, **kwargs):
         with torch.no_grad():
-            output = self.extract_feat(img)
+            outputs = self.extract_feat(img)
             if self.rpn_head:
-                output = self.rpn_head(output)[-1]
+                output = self.rpn_head(outputs)[-1]
 
             dets = ctdet_decode(
                 output['hm'].sigmoid_(), output['wh'], reg=output['reg'])
+            dets = dets.detach().cpu().numpy()
+            dets = ctdet_post_process_train(dets.copy(), img_meta, self.num_classes)
+
+            rois = bbox2roi(dets)
+            roi_feats = self.bbox_roi_extractor(
+                outputs.unsqueeze(0), rois)
+            # breakpoint()
+            cls_score, bbox_pred = self.bbox_head(roi_feats)
+            img_shape = img_meta[0]['img_shape']
+            scale_factor = img_meta[0]['scale_factor']
+            det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
+                rois,
+                cls_score,
+                bbox_pred,
+                img_shape,
+                scale_factor,
+                rescale=False,
+                cfg=self.test_cfg.rcnn)
+
+            # det_bboxes, det_labels = self.simple_test_bboxes(
+            #     [outputs.unsqueeze(0)], img_metas, dets[:,:,:4], self.test_cfg.rcnn, rescale=kwargs['rescale'])
+            bbox_results = bbox2result(det_bboxes, det_labels,
+                                       self.bbox_head.num_classes)
+
+            return bbox_results
 
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, img,
@@ -278,9 +388,9 @@ class CenterNet(TwoStageDetector):
         """
         with torch.no_grad():
             imgs = torch.cat(imgs, 0)
-            output = self.extract_feat(imgs)
+            outputs = self.extract_feat(imgs)
             if self.rpn_head:
-                output = self.rpn_head(output)[-1]
+                output = self.rpn_head(outputs)[-1]
 
             hm = output['hm'].sigmoid_()
             wh = output['wh']
@@ -291,6 +401,31 @@ class CenterNet(TwoStageDetector):
             reg = reg[0:1]
 
             dets = ctdet_decode(hm, wh, reg=reg)
+            dets = dets.detach().cpu().numpy()
+            dets = ctdet_post_process_train(dets.copy(), img_metas[-1], self.num_classes)
+
+            rois = bbox2roi(dets)
+            roi_feats = self.bbox_roi_extractor(
+                outputs.unsqueeze(0), rois)
+            # breakpoint()
+            cls_score, bbox_pred = self.bbox_head(roi_feats)
+            img_shape = img_metas[0][0]['img_shape']
+            scale_factor = img_metas[0][0]['scale_factor']
+            det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
+                rois,
+                cls_score,
+                bbox_pred,
+                img_shape,
+                scale_factor,
+                rescale=False,
+                cfg=self.test_cfg.rcnn)
+
+            # det_bboxes, det_labels = self.simple_test_bboxes(
+            #     [outputs.unsqueeze(0)], img_metas, dets[:,:,:4], self.test_cfg.rcnn, rescale=kwargs['rescale'])
+            bbox_results = bbox2result(det_bboxes, det_labels,
+                                       self.bbox_head.num_classes)
+
+            return bbox_results
             if self.test_cfg['debug'] >= 2:
                 self.debug(self.debugger, imgs,
                            dets, output)
